@@ -1,0 +1,12 @@
+Source: ros-kilted-mujoco-ros2-control-demos
+Section: misc
+Priority: optional
+Maintainer: Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), ros-kilted-ament-cmake, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-mujoco-ros2-control-demos
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, librobot-state-publisher-dev, ros-kilted-controller-manager, ros-kilted-joint-state-broadcaster, ros-kilted-mujoco-ros2-control, ros-kilted-mujoco-ros2-control-msgs, ros-kilted-position-controllers, ros-kilted-rviz2, ros-kilted-xacro, ros-robot-state-publisher, ros-kilted-ros-workspace
+Description: Demonstration examples for mujoco_ros2_control package
