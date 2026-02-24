@@ -1,0 +1,10 @@
+ros-jazzy-mujoco-ros2-control-demos (0.0.1-1bookworm) bookworm; urgency=high
+
+  * Updates docs and comments (#113 <https://github.com/ros-controls/mujoco_ros2_control/issues/113>)
+  * Cleanup of Docs and Dev Guides (#111 <https://github.com/ros-controls/mujoco_ros2_control/issues/111>)
+  * Add mujoco_ros2_control_demos package and retarget tests (#100 <https://github.com/ros-controls/mujoco_ros2_control/issues/100>)
+  * Contributors: Erik Holum, Louis LE LAY, Sai Kishor Kothakota
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
