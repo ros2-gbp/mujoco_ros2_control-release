@@ -1,0 +1,12 @@
+Source: ros-humble-mujoco-ros2-control-demos
+Section: misc
+Priority: optional
+Maintainer: Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-ament-cmake, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-mujoco-ros2-control-demos
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-controller-manager, ros-humble-joint-state-broadcaster, ros-humble-mujoco-ros2-control, ros-humble-mujoco-ros2-control-msgs, ros-humble-position-controllers, ros-humble-robot-state-publisher, ros-humble-rviz2, ros-humble-xacro, ros-humble-ros-workspace
+Description: Demonstration examples for mujoco_ros2_control package
