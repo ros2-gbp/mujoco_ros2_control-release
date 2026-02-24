@@ -1,0 +1,12 @@
+Source: ros-rolling-mujoco-ros2-control
+Section: misc
+Priority: optional
+Maintainer: Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), libglfw3-dev, python3-pykdl, ros-rolling-ament-cmake, ros-rolling-ament-cmake-gtest <!nocheck>, ros-rolling-backward-ros, ros-rolling-control-toolbox, ros-rolling-controller-manager, ros-rolling-hardware-interface, ros-rolling-mujoco-ros2-control-msgs, ros-rolling-mujoco-vendor, ros-rolling-nav-msgs, ros-rolling-pluginlib, ros-rolling-rclcpp, ros-rolling-rclcpp-lifecycle, ros-rolling-ros2-control-cmake, ros-rolling-sensor-msgs, ros-rolling-transmission-interface, ros-rolling-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-rolling-mujoco-ros2-control
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libglfw3-dev, python3-pip, python3-pykdl, python3-venv, ros-rolling-backward-ros, ros-rolling-control-toolbox, ros-rolling-controller-manager, ros-rolling-hardware-interface, ros-rolling-mujoco-ros2-control-msgs, ros-rolling-mujoco-vendor, ros-rolling-nav-msgs, ros-rolling-pluginlib, ros-rolling-rclcpp, ros-rolling-rclcpp-lifecycle, ros-rolling-sensor-msgs, ros-rolling-transmission-interface, ros-rolling-ros-workspace
+Description: ros2_control wrapper for the MuJoCo Simulate application
