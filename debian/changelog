@@ -1,0 +1,8 @@
+ros-kilted-mujoco-ros2-control-msgs (0.0.1-1bookworm) bookworm; urgency=high
+
+  * Add ResetWorld service to reset to a specific defined keyframe (#95 <https://github.com/ros-controls/mujoco_ros2_control/issues/95>)
+  * Contributors: Sai Kishor Kothakota
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
