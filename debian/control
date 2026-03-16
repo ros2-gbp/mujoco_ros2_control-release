@@ -1,0 +1,12 @@
+Source: ros-jazzy-mujoco-ros2-control
+Section: misc
+Priority: optional
+Maintainer: Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), libglfw3-dev, libnav-msgs-dev, libsensor-msgs-dev, pluginlib-dev, python3-nav-msgs, python3-pykdl, python3-sensor-msgs, ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-backward-ros, ros-jazzy-control-toolbox, ros-jazzy-controller-manager, ros-jazzy-hardware-interface, ros-jazzy-mujoco-ros2-control-msgs, ros-jazzy-mujoco-vendor, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-ros2-control-cmake, ros-jazzy-transmission-interface, ros-nav-msgs, ros-sensor-msgs, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-mujoco-ros2-control
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libglfw3-dev, libnav-msgs-dev, libsensor-msgs-dev, pluginlib-dev, python3-nav-msgs, python3-pip, python3-pykdl, python3-sensor-msgs, python3-venv, ros-jazzy-backward-ros, ros-jazzy-control-toolbox, ros-jazzy-controller-manager, ros-jazzy-hardware-interface, ros-jazzy-mujoco-ros2-control-msgs, ros-jazzy-mujoco-vendor, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-transmission-interface, ros-nav-msgs, ros-sensor-msgs, ros-jazzy-ros-workspace
+Description: ros2_control wrapper for the MuJoCo Simulate application
