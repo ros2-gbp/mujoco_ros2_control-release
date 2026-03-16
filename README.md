@@ -1,136 +1,90 @@
-# mujoco_ros2_control_demos
+# MuJoCo ros2_control
 
-Demonstration tutorials for the `mujoco_ros2_control` package. This package provides ready-to-use tutorials that show how to use MuJoCo with ros2_control.
+[![Rdev](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Kdev](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Jdev](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![CI](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml/badge.svg)](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml) ![License](https://img.shields.io/github/license/ros-controls/mujoco_ros2_control) [![Codecov](https://codecov.io/gh/ros-controls/mujoco_ros2_control/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-controls/mujoco_ros2_control)
 
-## Tutorials
+This repository provides a ros2_control system interface and supporting packages to run ROS 2 controllers against the MuJoCo physics simulator.
 
-This package includes 4 progressive tutorials demonstrating different aspects of MuJoCo ros2_control integration.
+This project wraps MuJoCo as a hardware/system interface so you can use the ros2_control stack (controller manager, controllers, controller interfaces) against simulated robots based on MJCF or generated from URDF.
 
-### Tutorial 1: Basic Robot
+### Contents
 
-The simplest setup - launches a two-link arm with position controllers using a pre-defined MJCF model.
+- `mujoco_ros2_control` - core system interface plugin and resources
+- `mujoco_ros2_control_msgs` - message/service definitions used by the plugin
+- `mujoco_ros2_control_demos` - demo launch files, configs and example robots
+- `mujoco_ros2_control_tests` - integration / launch tests and simple examples
+- `docker/` - Dockerfiles and scripts to run CI/containers
 
-```bash
-ros2 launch mujoco_ros2_control_demos 01_basic_robot.launch.py
-```
+### Key features
 
-**Key concepts:** Pre-defined MJCF loading, basic ros2_control integration, position control
+- Full ros2_control SystemInterface plugin for MuJoCo
+- MJCF/URDF conversion utilities to auto-generate MuJoCo models
+- Example demos showing basic control, PID and transmission setups
 
-**Resources:** `demo_resources/scenes/scene.xml`, `demo_resources/robot/test_robot.xml`
+## Quick start
 
-> [!TIP]
-> UI panels can be toggled with `Tab` or `Shift+Tab`.
-> All standard MuJoCo keyboard shortcuts are available.
-> To see a short list, press `F1`.
+There are two common ways to get running: build from source (recommended)
+or install prebuilt binaries (if available for your distribution).
 
----
+- Build from source (recommended)
 
-### Tutorial 2: MJCF Generation at Runtime
+  1. Install required dependencies manually or from rosdep, including the `mujoco_vendor` package, if available. Otherwise MuJoCo will will be downloaded at build time.
 
-Demonstrates generating MJCF models from URDF at runtime using the conversion script.
+  2. Build the workspace (example with a sourced ROS 2 installation):
 
-```bash
-# Using external input files
-ros2 launch mujoco_ros2_control_demos 02_mjcf_generation.launch.py
+  ```bash
+  # from workspace root (this repository is typically inside a ROS 2 workspace)
+  colcon build --symlink-install --packages-select mujoco_ros2_control* \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release
+  ```
 
-# Using mujoco_inputs embedded in URDF
-ros2 launch mujoco_ros2_control_demos 02_mjcf_generation.launch.py use_urdf_inputs:=true
-```
+  3. Source the workspace and run a demo:
 
-**Key concepts:** Runtime URDF→MJCF conversion, `<mujoco_inputs>` tags, external input files
+  ```bash
+  source install/setup.bash
+  ros2 launch mujoco_ros2_control_demos demo.launch.py
+  ```
 
-**Resources:** `demo_resources/mjcf_generation/test_inputs.xml`, `demo_resources/scenes/scene_info.xml`
+- Install prebuilt binaries (if available)
 
----
+  If your ROS 2 distribution or your OS package index provides prebuilt
+  packages for `mujoco_ros2_control`, you can install those instead of
+  compiling from source. Check your distribution's package repositories or
+  the project's GitHub releases for available binary artifacts.
 
-### Tutorial 3: PID Control
+  Example (Debian/Ubuntu with ROS packages — replace `<distro>`):
 
-Demonstrates PID controllers with motor actuators for velocity/effort control modes.
+  ```bash
+  sudo apt update
+  sudo apt install ros-<distro>-mujoco-ros2-control
+  ```
 
-```bash
-ros2 launch mujoco_ros2_control_demos 03_pid_control.launch.py
-```
+  After installing binaries, source your ROS install and run a demo:
 
-**Key concepts:** PID gain configuration, motor actuators, velocity/effort control
+  ```bash
+  source /opt/ros/<distro>/setup.bash
+  ros2 launch mujoco_ros2_control_demos demo.launch.py
+  ```
 
-**Resources:** `demo_resources/pid_control/test_robot_pid.xml`, `config/mujoco_pid.yaml`
+See [mujoco_ros2_control/README.md](./mujoco_ros2_control/README.md) for detailed usage, configuration examples and mappings between MJCF actuators/sensors and ros2_control interfaces.
 
----
+Supported ROS 2 distributions
+- The project is developed and tested against multiple ROS 2 distributions.
+  This README includes basic notes for: `Humble`, `Kilted`, `Jazzy` and
+  `Rolling`.
 
-### Tutorial 4: Transmissions
+### Support matrix
 
-Demonstrates ros2_control transmissions with mechanical reduction ratios.
+| Distribution | Status |
+| --- | --- |
+| Humble | Supported |
+| Kilted | Supported |
+| Jazzy | Supported |
+| Rolling | Supported (development) |
 
-```bash
-ros2 launch mujoco_ros2_control_demos 04_transmissions.launch.py
-```
+### Contributing
 
-**Key concepts:** SimpleTransmission interface, mechanical reduction, actuator-to-joint mapping
+- Contributions, bug reports and feature requests are welcome. Please follow standard ROS Controls project workflows: open issues, send PRs against the   `main` branch and respect the repository code style using `pre-commit`.
 
-**Resources:** Uses `demo_resources/robot/test_robot.urdf` with `use_transmissions:=true`
+### License & maintainers
 
----
-
-## Combined Demo
-
-For backward compatibility and combined feature testing:
-
-```bash
-ros2 launch mujoco_ros2_control_demos demo.launch.py
-ros2 launch mujoco_ros2_control_demos demo.launch.py use_pid:=true
-ros2 launch mujoco_ros2_control_demos demo.launch.py use_mjcf_from_topic:=true
-ros2 launch mujoco_ros2_control_demos demo.launch.py test_transmissions:=true
-```
-
-## Headless Mode
-
-All tutorials support headless mode:
-
-```bash
-ros2 launch mujoco_ros2_control_demos 01_basic_robot.launch.py headless:=true
-```
-
-## Controlling the Robot
-
-```bash
-# Set joint positions (joint1, joint2)
-ros2 topic pub /position_controller/commands std_msgs/msg/Float64MultiArray "data: [0.5, -0.5]"
-
-# Control the gripper
-ros2 topic pub /gripper_controller/commands std_msgs/msg/Float64MultiArray "data: [-0.02]"
-
-# Monitor joint states
-ros2 topic echo /joint_states
-```
-
-## Package Structure
-
-```
-mujoco_ros2_control_demos/
-├── launch/
-│   ├── 01_basic_robot.launch.py      # Tutorial 1
-│   ├── 02_mjcf_generation.launch.py  # Tutorial 2
-│   ├── 03_pid_control.launch.py      # Tutorial 3
-│   ├── 04_transmissions.launch.py    # Tutorial 4
-│   └── demo.launch.py                # Combined demo
-├── config/
-│   ├── controllers.yaml              # Controller configuration
-│   └── mujoco_pid.yaml               # PID gains (Tutorial 3)
-└── demo_resources/
-    ├── robot/
-    │   ├── test_robot.urdf           # Shared URDF description
-    │   └── test_robot.xml            # MJCF robot model
-    ├── scenes/
-    │   ├── scene.xml                 # Basic scene (Tutorial 1, 4)
-    │   ├── scene_pid.xml             # PID scene (Tutorial 3)
-    │   └── scene_info.xml            # Scene generation info
-    ├── mjcf_generation/
-    │   └── test_inputs.xml           # MJCF conversion inputs (Tutorial 2)
-    └── pid_control/
-        └── test_robot_pid.xml        # Robot with motor actuators
-```
-
-## See Also
-
-- Main package: [mujoco_ros2_control](../mujoco_ros2_control/)
-- Tests: [mujoco_ros2_control_tests](../mujoco_ros2_control_tests/)
+- This repository is distributed under the terms of the LICENSE file (`LICENSE`). Maintainers and authors are listed in the Git history and package manifests (`package.xml`) inside each package.
