@@ -1,0 +1,22 @@
+ros-jazzy-mujoco-ros2-control-demos (0.0.2-1bookworm) bookworm; urgency=high
+
+  * Fix reset simulation service for robots using PID control (#140 <https://github.com/ros-controls/mujoco_ros2_control/issues/140>)
+  * Cleanup duplicate files (#146 <https://github.com/ros-controls/mujoco_ros2_control/issues/146>)
+  * Remove deprecated JointGroupPositionController with ForwardCommandController (#147 <https://github.com/ros-controls/mujoco_ros2_control/issues/147>)
+  * [URDF->MJCF] fixed path for urdf with test (#127 <https://github.com/ros-controls/mujoco_ros2_control/issues/127>)
+  * [Feature] MuJoCo ros2 control plugins (#133 <https://github.com/ros-controls/mujoco_ros2_control/issues/133>)
+  * Use pixi-build-ros as the backend for pixi builds (#130 <https://github.com/ros-controls/mujoco_ros2_control/issues/130>)
+  * Contributors: Christoph Fröhlich, Erik Holum, Ortisa, Sai Kishor Kothakota
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 16 Mar 2026 23:00:00 -0000
+
+ros-jazzy-mujoco-ros2-control-demos (0.0.1-1bookworm) bookworm; urgency=high
+
+  * Updates docs and comments (#113 <https://github.com/ros-controls/mujoco_ros2_control/issues/113>)
+  * Cleanup of Docs and Dev Guides (#111 <https://github.com/ros-controls/mujoco_ros2_control/issues/111>)
+  * Add mujoco_ros2_control_demos package and retarget tests (#100 <https://github.com/ros-controls/mujoco_ros2_control/issues/100>)
+  * Contributors: Erik Holum, Louis LE LAY, Sai Kishor Kothakota
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
