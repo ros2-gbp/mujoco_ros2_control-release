@@ -1,0 +1,14 @@
+ros-rolling-mujoco-ros2-control-plugins (0.0.2-1bookworm) bookworm; urgency=high
+
+  * [Feature] MuJoCo ros2 control plugins (#133 <https://github.com/ros-controls/mujoco_ros2_control/issues/133>)
+  * Contributors: Sai Kishor Kothakota, Erik Holum
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 16 Mar 2026 23:00:00 -0000
+
+ros-rolling-mujoco-ros2-control-plugins (0.0.1-1bookworm) bookworm; urgency=high
+
+
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
