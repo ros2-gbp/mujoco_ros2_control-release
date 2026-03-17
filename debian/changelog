@@ -1,0 +1,16 @@
+ros-jazzy-mujoco-ros2-control-msgs (0.0.2-1bookworm) bookworm; urgency=high
+
+  * Use pixi-build-ros as the backend for pixi builds (#130 <https://github.com/ros-controls/mujoco_ros2_control/issues/130>)
+  * Update license name to SPDX standard (#129 <https://github.com/ros-controls/mujoco_ros2_control/issues/129>)
+  * Contributors: Erik Holum, Sai Kishor Kothakota
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 16 Mar 2026 23:00:00 -0000
+
+ros-jazzy-mujoco-ros2-control-msgs (0.0.1-1bookworm) bookworm; urgency=high
+
+  * Add ResetWorld service to reset to a specific defined keyframe (#95 <https://github.com/ros-controls/mujoco_ros2_control/issues/95>)
+  * Contributors: Sai Kishor Kothakota
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
