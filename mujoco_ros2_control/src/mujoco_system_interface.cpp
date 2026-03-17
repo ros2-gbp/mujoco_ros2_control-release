@@ -20,6 +20,10 @@
 #include "mujoco_ros2_control/mujoco_system_interface.hpp"
 #include "array_safety.h"
 
+#include <fmt/compile.h>
+#include <fmt/ranges.h>
+
+#include <unistd.h>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -459,8 +463,8 @@ mjModel* loadModelFromTopic(rclcpp::Node::SharedPtr node, const std::string& top
       mj_deleteSpec(spec);
     }
     mj_deleteSpec(spec);
-    RCLCPP_INFO(node->get_logger(), "Model body count: %d", mnew->nbody);
-    RCLCPP_INFO(node->get_logger(), "Model geom count: %d", mnew->ngeom);
+    RCLCPP_INFO(node->get_logger(), "Model body count: %ld", static_cast<long>(mnew->nbody));
+    RCLCPP_INFO(node->get_logger(), "Model geom count: %ld", static_cast<long>(mnew->ngeom));
   }
   return mnew;
 }
@@ -662,6 +666,13 @@ MujocoSystemInterface::~MujocoSystemInterface()
   mujoco_actuator_data_.clear();
   urdf_joint_data_.clear();
 
+  // Cleanup plugins
+  for (auto& plugin : plugin_instances_)
+  {
+    plugin->cleanup();
+  }
+  plugin_instances_.clear();
+
   // Cleanup data and the model, if they haven't been
   if (mj_data_)
   {
@@ -830,6 +841,8 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
   const auto pids_config_file = get_hardware_parameter(get_hardware_info(), "pids_config_file");
   rclcpp::NodeOptions node_options;
   node_options.append_parameter_override("use_sim_time", rclcpp::ParameterValue(true));
+  node_options.automatically_declare_parameters_from_overrides(true);
+  node_options.allow_undeclared_parameters(true);
   if (pids_config_file.has_value())
   {
     std::string pids_config_file_path = pids_config_file.value();
@@ -853,7 +866,7 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
   }
   RCLCPP_INFO(get_logger(), "Constructing node and executor...");
   executor_ = std::make_unique<rclcpp::executors::MultiThreadedExecutor>();
-  mujoco_node_ = std::make_shared<rclcpp::Node>("mujoco_node", node_options);
+  mujoco_node_ = std::make_shared<rclcpp::Node>("mujoco_ros2_control_node", node_options);
   executor_->add_node(mujoco_node_);
   executor_thread_ = std::thread([this]() { executor_->spin(); });
   RCLCPP_INFO(get_logger(), "Executor thread started.");
@@ -1048,6 +1061,9 @@ MujocoSystemInterface::on_init(const hardware_interface::HardwareComponentInterf
   {
     actuator_state_msg_.name.push_back(actuator.joint_name);
   }
+
+  // Load MuJoCo ROS2 Control plugins
+  this->load_mujoco_plugins();
 
   RCLCPP_INFO(get_logger(), "on_init complete.");
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -1341,24 +1357,19 @@ MujocoSystemInterface::perform_command_mode_switch(const std::vector<std::string
     }
     else
     {
-      if (interface_type == hardware_interface::HW_IF_POSITION)
-      {
-        actuator_it->is_position_control_enabled = false;
-        actuator_it->is_position_pid_control_enabled = false;
-        joint_it->is_position_control_enabled = false;
-      }
-      else if (interface_type == hardware_interface::HW_IF_VELOCITY)
-      {
-        actuator_it->is_velocity_control_enabled = false;
-        actuator_it->is_velocity_pid_control_enabled = false;
-        joint_it->is_velocity_control_enabled = false;
-      }
-      else if (interface_type == hardware_interface::HW_IF_EFFORT ||
-               interface_type == hardware_interface::HW_IF_TORQUE || interface_type == hardware_interface::HW_IF_FORCE)
-      {
-        actuator_it->is_effort_control_enabled = false;
-        joint_it->is_effort_control_enabled = false;
-      }
+      // Clear all control flags on stop, regardless of interface type.
+      // This mirrors the enabled=true path and ensures no stale flag can keep a
+      // write() branch active after the controller has been deactivated.
+      joint_it->is_position_control_enabled = false;
+      joint_it->is_velocity_control_enabled = false;
+      joint_it->is_effort_control_enabled = false;
+
+      actuator_it->is_position_control_enabled = false;
+      actuator_it->is_velocity_control_enabled = false;
+      actuator_it->is_effort_control_enabled = false;
+      actuator_it->is_position_pid_control_enabled = false;
+      actuator_it->is_velocity_pid_control_enabled = false;
+
       RCLCPP_INFO(get_logger(), "Joint %s: %s control disabled", joint_name.c_str(), interface_type.c_str());
     }
   };
@@ -1466,6 +1477,12 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
 #else
     floating_base_realtime_publisher_->try_publish(floating_base_msg_);
 #endif
+  }
+
+  // Update plugins
+  for (auto& plugin : plugin_instances_)
+  {
+    plugin->update(mj_model_, mj_data_control_);
   }
 
   return hardware_interface::return_type::OK;
@@ -1631,7 +1648,8 @@ bool MujocoSystemInterface::register_mujoco_actuators()
 
   for (int i = 0; i < mj_model_->nu; i++)
   {
-    RCLCPP_DEBUG(get_logger(), "Registering MuJoCo actuator %d/%d", i + 1, mj_model_->nu);
+    RCLCPP_DEBUG(get_logger(), "Registering MuJoCo actuator %ld/%ld", static_cast<long>(i + 1),
+                 static_cast<long>(mj_model_->nu));
     MuJoCoActuatorData& actuator_data = mujoco_actuator_data_.at(i);
 
     // Get the name of the joint/tendon corresponding to the actuator ID
@@ -2568,6 +2586,14 @@ void MujocoSystemInterface::reset_simulation_state(bool fill_initial_state)
 
     if (actuator.actuator_type != ActuatorType::PASSIVE)
     {
+      actuator.is_position_pid_control_enabled = actuator.has_pos_pid;
+      actuator.is_position_control_enabled = !actuator.has_pos_pid && actuator.actuator_type == ActuatorType::POSITION;
+      actuator.is_velocity_pid_control_enabled = !actuator.has_pos_pid && actuator.has_vel_pid;
+      actuator.is_velocity_control_enabled =
+          !actuator.has_pos_pid && !actuator.has_vel_pid && actuator.actuator_type == ActuatorType::VELOCITY;
+      actuator.is_effort_control_enabled =
+          !actuator.has_pos_pid && !actuator.has_vel_pid &&
+          (actuator.actuator_type == ActuatorType::MOTOR || actuator.actuator_type == ActuatorType::CUSTOM);
       // Set command to initial position to maintain position control at reset position
       actuator.position_interface.command_ = actuator.position_interface.state_;
       actuator.velocity_interface.command_ = 0.0;
@@ -2706,8 +2732,8 @@ void MujocoSystemInterface::PhysicsLoop()
             sim_->speed_changed = false;
 
             // Copy data to the control
-            mju_copy(mj_data_->ctrl, mj_data_control_->ctrl, mj_model_->nu);
-            mju_copy(mj_data_->qfrc_applied, mj_data_control_->qfrc_applied, mj_model_->nu);
+            mju_copy(mj_data_->ctrl, mj_data_control_->ctrl, static_cast<int>(mj_model_->nu));
+            mju_copy(mj_data_->qfrc_applied, mj_data_control_->qfrc_applied, static_cast<int>(mj_model_->nu));
             // run single step, let next iteration deal with timing
             mj_step(mj_model_, mj_data_);
 
@@ -2757,8 +2783,8 @@ void MujocoSystemInterface::PhysicsLoop()
 #endif
 
               // Copy data to the control
-              mju_copy(mj_data_->ctrl, mj_data_control_->ctrl, mj_model_->nu);
-              mju_copy(mj_data_->qfrc_applied, mj_data_control_->qfrc_applied, mj_model_->nu);
+              mju_copy(mj_data_->ctrl, mj_data_control_->ctrl, static_cast<int>(mj_model_->nu));
+              mju_copy(mj_data_->qfrc_applied, mj_data_control_->qfrc_applied, static_cast<int>(mj_model_->nu));
               // call mj_step
               mj_step(mj_model_, mj_data_);
 
@@ -2864,6 +2890,71 @@ rclcpp::Logger MujocoSystemInterface::get_logger() const
 rclcpp::Node::SharedPtr MujocoSystemInterface::get_node() const
 {
   return mujoco_node_;
+}
+
+void MujocoSystemInterface::load_mujoco_plugins()
+{
+  try
+  {
+    plugin_loader_ = std::make_unique<pluginlib::ClassLoader<mujoco_ros2_control_plugins::MuJoCoROS2ControlPluginBase>>(
+        "mujoco_ros2_control_plugins", "mujoco_ros2_control_plugins::MuJoCoROS2ControlPluginBase");
+
+    // Get list of plugins from parameter (if specified)
+    const std::string mujoco_plugins_param_prefix = "mujoco_plugins";
+    std::vector<std::string> plugins_ns;
+    const auto list_parameters = get_node()->list_parameters({ mujoco_plugins_param_prefix }, 0u);
+    const auto init_position = mujoco_plugins_param_prefix.size() + 1;  // +1 for the dot
+    for (const auto& param : list_parameters.names)
+    {
+      // find the plugin key: after 'mujoco_plugins.', and before the next '.'
+      const auto plugin_key = param.substr(init_position, param.find_first_of('.', init_position) - init_position);
+      // Add the plugin to the set of unique values
+      if (std::find(plugins_ns.begin(), plugins_ns.end(), plugin_key) == plugins_ns.end())
+      {
+        plugins_ns.push_back(plugin_key);
+      }
+    }
+    RCLCPP_INFO_EXPRESSION(get_logger(), plugins_ns.empty(), "No 'mujoco_plugins' parameter found!");
+    RCLCPP_INFO_EXPRESSION(get_logger(), !plugins_ns.empty(),
+                           "Found 'mujoco_plugins' parameter with the following plugins: %s",
+                           fmt::format("{}", fmt::join(plugins_ns, ", ")).c_str());
+
+    // Load and initialize each plugin
+    for (const auto& plugin_name : plugins_ns)
+    {
+      try
+      {
+        const std::string plugin_type_param = mujoco_plugins_param_prefix + "." + plugin_name + ".type";
+        if (!get_node()->has_parameter(plugin_type_param))
+        {
+          RCLCPP_WARN(get_logger(), "Plugin parameter '%s' not found, skipping plugin.", plugin_type_param.c_str());
+          continue;
+        }
+        const std::string plugin_type = get_node()->get_parameter(plugin_type_param).as_string();
+        auto plugin = plugin_loader_->createSharedInstance(plugin_type);
+        if (plugin->init(get_node()->create_sub_node(plugin_name), mj_model_, mj_data_))
+        {
+          plugin_instances_.push_back(plugin);
+          RCLCPP_INFO(get_logger(), "Successfully loaded and initialized plugin: %s", plugin_name.c_str());
+        }
+        else
+        {
+          RCLCPP_ERROR(get_logger(), "Failed to initialize plugin: %s of type: %s", plugin_name.c_str(),
+                       plugin_type.c_str());
+          throw std::runtime_error("Failed to initialize plugin: " + plugin_name + " of type: " + plugin_type);
+        }
+      }
+      catch (const pluginlib::PluginlibException& ex)
+      {
+        RCLCPP_ERROR(get_logger(), "Failed to load plugin '%s': %s", plugin_name.c_str(), ex.what());
+        throw;  // re-throw to be caught by the outer catch block
+      }
+    }
+  }
+  catch (const pluginlib::PluginlibException& ex)
+  {
+    RCLCPP_ERROR(get_logger(), "Failed to create plugin loader: %s", ex.what());
+  }
 }
 
 }  // namespace mujoco_ros2_control
