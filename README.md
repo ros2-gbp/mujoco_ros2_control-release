@@ -1,3 +1,33 @@
+## mujoco_ros2_control (rolling) - 0.0.2-1
+
+The packages in the `mujoco_ros2_control` repository were released into the `rolling` distro by running `/usr/local/bin/bloom-release --rosdistro rolling --track rolling mujoco_ros2_control -y` on `Tue, 17 Mar 2026 08:42:49 -0000`
+
+These packages were released:
+- `mujoco_ros2_control`
+- `mujoco_ros2_control_demos`
+- `mujoco_ros2_control_msgs`
+- `mujoco_ros2_control_plugins`
+
+These packages were explicitly ignored:
+- `mujoco_ros2_control_tests`
+
+Version of package(s) in repository `mujoco_ros2_control`:
+
+- upstream repository: https://github.com/ros-controls/mujoco_ros2_control.git
+- release repository: https://github.com/ros2-gbp/mujoco_ros2_control-release.git
+- rosdistro version: `0.0.1-2`
+- old version: `0.0.1-2`
+- new version: `0.0.2-1`
+
+Versions of tools used:
+
+- bloom version: `0.12.0`
+- catkin_pkg version: `1.0.0`
+- rosdep version: `0.21.0`
+- rosdistro version: `0.8.3`
+- vcstools version: `0.1.42`
+
+
 ## mujoco_ros2_control (humble) - 0.0.2-1
 
 The packages in the `mujoco_ros2_control` repository were released into the `humble` distro by running `/usr/local/bin/bloom-release --rosdistro humble --track humble mujoco_ros2_control -y` on `Tue, 17 Mar 2026 08:40:23 -0000`
