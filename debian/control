@@ -1,0 +1,12 @@
+Source: ros-rolling-mujoco-ros2-control-plugins
+Section: misc
+Priority: optional
+Maintainer: Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), ros-rolling-ament-cmake, ros-rolling-ament-cmake-gtest <!nocheck>, ros-rolling-mujoco-vendor, ros-rolling-pluginlib, ros-rolling-rclcpp, ros-rolling-ros2-control-cmake, ros-rolling-std-msgs, ros-rolling-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-rolling-mujoco-ros2-control-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-rolling-mujoco-vendor, ros-rolling-pluginlib, ros-rolling-rclcpp, ros-rolling-ros2-control-cmake, ros-rolling-std-msgs, ros-rolling-ros-workspace
+Description: Plugin package for mujoco_ros2_control
