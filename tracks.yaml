@@ -104,5 +104,4 @@ tracks:
     ros_distro: rolling
     vcs_type: git
     vcs_uri: https://github.com/ros-controls/mujoco_ros2_control.git
-    version: 0.0.2
-    version_saved: :{auto}
+    version: :{auto}
