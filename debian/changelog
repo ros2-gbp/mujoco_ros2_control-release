@@ -1,0 +1,14 @@
+ros-rolling-mujoco-ros2-control-plugins (0.0.2-2trixie) trixie; urgency=high
+
+  * [Feature] MuJoCo ros2 control plugins (#133 <https://github.com/ros-controls/mujoco_ros2_control/issues/133>)
+  * Contributors: Sai Kishor Kothakota, Erik Holum
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Tue, 17 Mar 2026 05:00:00 -0000
+
+ros-rolling-mujoco-ros2-control-plugins (0.0.1-2trixie) trixie; urgency=high
+
+
+
+ -- Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>  Tue, 24 Feb 2026 06:00:00 -0000
+
+
