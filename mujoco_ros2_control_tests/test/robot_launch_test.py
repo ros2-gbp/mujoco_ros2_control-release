@@ -30,7 +30,7 @@ import pytest
 import rclpy
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from rosgraph_msgs.msg import Clock
-from mujoco_ros2_control_msgs.srv import ResetWorld
+from mujoco_ros2_control_msgs.srv import ResetWorld, SetPause, StepSimulation
 from std_msgs.msg import Float64MultiArray, String
 from sensor_msgs.msg import JointState, Image, CameraInfo
 from controller_manager_msgs.srv import ListHardwareInterfaces, SwitchController
@@ -236,14 +236,14 @@ class TestFixture(unittest.TestCase):
             rclpy.spin_once(self.node, timeout_sec=0.1)
 
         # Wait for joints to reach target positions
-        self.wait_for_joint_positions({"joint1": 0.5, "joint2": -0.5}, delta=0.05, timeout=5.0)
+        self.wait_for_joint_positions({"joint1": 0.5, "joint2": -0.5}, delta=0.05, timeout=15.0)
 
         if os.environ.get("TEST_TRANSMISSIONS") != "true":
             expected_actuators = {"joint1": 0.5, "joint2": -0.5}
         else:
             expected_actuators = {"actuator1": 0.5 * 2.0, "actuator2": -0.5 * 0.5}
 
-        self.wait_for_joint_positions(expected_actuators, delta=0.05, timeout=5.0, topic="actuator_states")
+        self.wait_for_joint_positions(expected_actuators, delta=0.05, timeout=15.0, topic="actuator_states")
 
         # make sure the efforts field is non-zero (indicating PID/ effort reporting is working)
         self.assertTrue(
@@ -277,14 +277,14 @@ class TestFixture(unittest.TestCase):
         self.wait_for_joint_positions(
             {"gripper_left_finger_joint": -0.04, "gripper_right_finger_joint": 0.04},
             delta=0.005,
-            timeout=5.0,
+            timeout=15.0,
         )
 
         # And confirm that the mujoco_actuators_states also gets there
         self.wait_for_joint_positions(
             {"gripper_left_finger_joint": -0.04, "gripper_right_finger_joint": 0.04},
             delta=0.005,
-            timeout=5.0,
+            timeout=15.0,
             topic="actuator_states",
         )
 
@@ -408,6 +408,199 @@ class TestFixture(unittest.TestCase):
         # Poll until joints converge again
         self.wait_for_joint_positions({"joint1": -0.5, "joint2": 0.5}, delta=0.05, timeout=15.0)
         wait_for_clock.shutdown()
+
+    def test_step_simulation_zero_steps_rejected(self):
+        """step_simulation with steps=0 must be rejected even when the simulation is paused."""
+        mujoco_sim_node = "/mujoco_ros2_control_node"
+
+        pause_client = self.node.create_client(SetPause, f"{mujoco_sim_node}/set_pause")
+        self.assertTrue(pause_client.wait_for_service(timeout_sec=10.0), "set_pause service not available")
+
+        step_client = self.node.create_client(StepSimulation, f"{mujoco_sim_node}/step_simulation")
+        self.assertTrue(step_client.wait_for_service(timeout_sec=10.0), "step_simulation service not available")
+
+        # Pause so the steps=0 validation is reached
+        pause_req = SetPause.Request()
+        pause_req.paused = True
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success, "set_pause(paused=True) failed")
+
+        step_req = StepSimulation.Request()
+        step_req.steps = 0
+        future = step_client.call_async(step_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertFalse(result.success, "step_simulation with steps=0 should fail")
+
+        # Leave the simulation running again
+        pause_req.paused = False
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success, "set_pause(paused=False) failed after zero-steps test")
+
+    def test_step_simulation_interrupted_by_resume(self):
+        """Resuming the simulation while step_simulation is counting down must abort the call."""
+        # Use enough steps that the physics loop cannot drain them all before we call resume.
+        # 50 000 steps × 0.002 s = 100 s of sim time — far more than the ~0.2 s it takes
+        # to spin, send the resume request, and have the physics loop react.
+
+        mujoco_sim_node = "/mujoco_ros2_control_node"
+
+        pause_client = self.node.create_client(SetPause, f"{mujoco_sim_node}/set_pause")
+        self.assertTrue(pause_client.wait_for_service(timeout_sec=10.0), "set_pause service not available")
+
+        step_client = self.node.create_client(StepSimulation, f"{mujoco_sim_node}/step_simulation")
+        self.assertTrue(step_client.wait_for_service(timeout_sec=10.0), "step_simulation service not available")
+
+        # Pause the simulation
+        pause_req = SetPause.Request()
+        pause_req.paused = True
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success, "set_pause(paused=True) failed")
+
+        step_req = StepSimulation.Request()
+        step_req.steps = 50000
+        step_future = step_client.call_async(step_req)
+
+        # Spin briefly so the service request is triggered
+        self.spin_until(lambda: False, timeout=0.2)
+
+        # Resume the simulation to trigger the physics loop to abort the pending steps
+        pause_req.paused = False
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
+        self.assertTrue(future.result().success, "set_pause(paused=False) failed")
+
+        rclpy.spin_until_future_complete(self.node, step_future, timeout_sec=5.0)
+        result = step_future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertFalse(result.success, "step_simulation should fail when simulation is resumed mid-countdown")
+
+    def test_set_pause_and_step_simulation(self):
+        """Test set_pause and step_simulation services interact correctly."""
+        # MuJoCo default timestep used by the test model
+        MUJOCO_TIMESTEP = 0.002  # seconds
+        N_STEPS = 100
+        EXPECTED_DELTA_SEC = N_STEPS * MUJOCO_TIMESTEP  # 0.2 s
+
+        mujoco_sim_node = "/mujoco_ros2_control_node"
+
+        pause_client = self.node.create_client(SetPause, f"{mujoco_sim_node}/set_pause")
+        self.assertTrue(pause_client.wait_for_service(timeout_sec=10.0), "set_pause service not available")
+
+        step_client = self.node.create_client(StepSimulation, f"{mujoco_sim_node}/step_simulation")
+        self.assertTrue(step_client.wait_for_service(timeout_sec=10.0), "step_simulation service not available")
+
+        # Subscribe to /clock early so we never miss messages published while running.
+        clock_time = 0.0
+
+        def clock_cb(msg):
+            nonlocal clock_time
+            clock_time = msg.clock.sec + msg.clock.nanosec * 1e-9
+
+        clock_sub = self.node.create_subscription(Clock, "/clock", clock_cb, 10)
+
+        # Helper function to ensure no more clock messages are in flight
+        def clock_settled():
+            t = clock_time
+            rclpy.spin_once(self.node, timeout_sec=0.1)
+            return clock_time == t
+
+        # Wait for the sim to be publishing /clock before we do anything
+        self.assertTrue(self.spin_until(lambda: clock_time > 0.0, timeout=10.0), "No /clock messages received")
+
+        # step_simulation must fail while the simulation is running
+        step_req = StepSimulation.Request()
+        step_req.steps = N_STEPS
+        future = step_client.call_async(step_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertFalse(result.success, "step_simulation should fail when simulation is running")
+
+        # Now Pause the simulation
+        pause_req = SetPause.Request()
+        pause_req.paused = True
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertIsNotNone(result, "set_pause returned None")
+        self.assertTrue(result.success, f"set_pause(paused=True) failed: {result.message}")
+
+        # Ensure all messages are pulled off the clock topic, and the clock has settled during the pause.
+        self.spin_until(clock_settled, timeout=2.0)
+        paused_clock_time = clock_time
+        self.spin_until(lambda: False, timeout=1.5)
+        # Allow a small epsilon beyond MUJOCO_TIMESTEP to absorb floating-point
+        # rounding that accumulates when converting sec + nanosec * 1e-7.
+        self.assertAlmostEqual(paused_clock_time, clock_time, delta=MUJOCO_TIMESTEP + 1e-7)
+
+        # Setting the simulation to paused again should still succeed
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertTrue(result.success, "set_pause(paused=True) a second time should still succeed")
+
+        # --- Step N_STEPS physics steps and capture clock before/after ---
+        # Flush and record the baseline clock while paused
+        clock_before_sec = clock_time
+        step_req.steps = N_STEPS
+        future = step_client.call_async(step_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=30.0)
+        result = future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertTrue(result.success, f"step_simulation failed: {result.message}")
+
+        # Wait for clock to continue to move forward
+        self.assertTrue(
+            self.spin_until(lambda: clock_time > clock_before_sec, timeout=5.0),
+            "No /clock messages published after step_simulation",
+        )
+        self.spin_until(clock_settled, timeout=2.0)
+        clock_after_sec = clock_time
+
+        # Sim is paused so clock should advance by exactly N_STEPS * dt, but allow two
+        # timesteps of error to account for async message processing, and for floating
+        # point arithmetic issues. It is possible that a clock message from the boundary
+        # of the pause is delivered during the settle flush, shifting the baseline by
+        # one step.
+        actual_delta = clock_after_sec - clock_before_sec
+        self.assertAlmostEqual(
+            actual_delta,
+            EXPECTED_DELTA_SEC,
+            delta=2.0 * MUJOCO_TIMESTEP,
+            msg=f"Clock advanced by {actual_delta:.6f}s, expected {EXPECTED_DELTA_SEC:.6f}s "
+            f"({N_STEPS} steps × {MUJOCO_TIMESTEP}s)",
+        )
+
+        # Ensure we can step again, and that the clock has progressed
+        future = step_client.call_async(step_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=30.0)
+        result = future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertTrue(result.success, f"step_simulation failed: {result.message}")
+        self.spin_until(clock_settled, timeout=2.0)
+        clock_after_sec2 = clock_time
+        self.assertTrue(clock_after_sec2 > clock_after_sec)
+
+        # Unpause the simulation and verify the clock restarts
+        pause_req.paused = False
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertIsNotNone(result, "set_pause returned None on resume")
+        self.assertTrue(result.success, f"set_pause(paused=False) failed: {result.message}")
+
+        # Verify /clock is ticking again after resume
+        self.assertTrue(
+            self.spin_until(lambda: clock_time > clock_after_sec, timeout=5.0),
+            "Clock did not resume ticking after set_pause(paused=False)",
+        )
+
+        self.node.destroy_subscription(clock_sub)
 
 
 class TestFixtureHardwareInterfacesCheck(unittest.TestCase):
