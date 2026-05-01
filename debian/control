@@ -1,0 +1,12 @@
+Source: ros-kilted-mujoco-ros2-control-plugins
+Section: misc
+Priority: optional
+Maintainer: Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), libgeometry-msgs-dev, libstd-msgs-dev, libvisualization-msgs-dev, pluginlib-dev, python3-geometry-msgs, python3-std-msgs, python3-visualization-msgs, ros-geometry-msgs, ros-kilted-ament-cmake, ros-kilted-ament-cmake-gtest <!nocheck>, ros-kilted-backward-ros, ros-kilted-mujoco-ros2-control-msgs, ros-kilted-mujoco-vendor, ros-kilted-rclcpp, ros-kilted-realtime-tools, ros-kilted-ros2-control-cmake, ros-std-msgs, ros-visualization-msgs, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-mujoco-ros2-control-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libgeometry-msgs-dev, libstd-msgs-dev, libvisualization-msgs-dev, pluginlib-dev, python3-geometry-msgs, python3-std-msgs, python3-visualization-msgs, ros-geometry-msgs, ros-kilted-backward-ros, ros-kilted-mujoco-ros2-control-msgs, ros-kilted-mujoco-vendor, ros-kilted-rclcpp, ros-kilted-realtime-tools, ros-kilted-ros2-control-cmake, ros-std-msgs, ros-visualization-msgs, ros-kilted-ros-workspace
+Description: Plugin package for mujoco_ros2_control
