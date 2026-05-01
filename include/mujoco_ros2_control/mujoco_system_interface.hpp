@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -26,11 +27,14 @@
 #include <vector>
 
 #include <hardware_interface/version.h>
+#include <atomic>
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/hardware_info.hpp>
 #include <hardware_interface/system_interface.hpp>
 #include <hardware_interface/types/hardware_interface_return_values.hpp>
 #include <mujoco_ros2_control_msgs/srv/reset_world.hpp>
+#include <mujoco_ros2_control_msgs/srv/set_pause.hpp>
+#include <mujoco_ros2_control_msgs/srv/step_simulation.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/macros.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -279,6 +283,12 @@ private:
   void reset_world_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::ResetWorld::Request> request,
                             std::shared_ptr<mujoco_ros2_control_msgs::srv::ResetWorld::Response> response);
 
+  void set_pause_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::SetPause::Request> request,
+                          std::shared_ptr<mujoco_ros2_control_msgs::srv::SetPause::Response> response);
+
+  void step_simulation_callback(const std::shared_ptr<mujoco_ros2_control_msgs::srv::StepSimulation::Request> request,
+                                std::shared_ptr<mujoco_ros2_control_msgs::srv::StepSimulation::Response> response);
+
   /**
    * @brief Spins the physics simulation for the Simulate Application
    */
@@ -290,6 +300,13 @@ private:
    * This enables pausing and restarting of the simulation through the application window.
    */
   void publish_clock();
+
+  /**
+   * @brief Updates the Simulate Application's display.
+   *
+   * This should be called after any changes to the simulation state to ensure the display is up to date.
+   */
+  void update_sim_display();
 
   /// Get the node of the MuJoCoSystemInterface.
   /**
@@ -320,13 +337,15 @@ private:
   mjvCamera cam_;
   mjvOption opt_;
   mjvPerturb pert_;
-
   // Logger
   rclcpp::Logger logger_ = rclcpp::get_logger("MujocoSystemInterface");
 
   // Speed scaling parameter. if set to >0 then we ignore the value set in the simulate app and instead
   // attempt to loop at whatever this is set to. If this is <0, then we use the value from the app.
   double sim_speed_factor_;
+
+  // True when running without a display (no GLFW window)
+  bool headless_{ false };
 
   // Primary simulate object
   std::unique_ptr<mujoco::Simulate> sim_;
@@ -399,13 +418,48 @@ private:
   bool override_urdf_joint_positions_{ false };
 
   // Reset world service
+  rclcpp::CallbackGroup::SharedPtr reset_world_cb_group_;
   rclcpp::Service<mujoco_ros2_control_msgs::srv::ResetWorld>::SharedPtr reset_world_service_;
+
+  // Set pause service
+  rclcpp::CallbackGroup::SharedPtr set_pause_cb_group_;
+  rclcpp::Service<mujoco_ros2_control_msgs::srv::SetPause>::SharedPtr set_pause_service_;
+
+  // Step simulation service
+  rclcpp::CallbackGroup::SharedPtr step_simulation_cb_group_;
+  rclcpp::Service<mujoco_ros2_control_msgs::srv::StepSimulation>::SharedPtr step_simulation_service_;
+
+  // Pending steps to execute while paused, and synchronization for blocking callers
+  std::atomic<uint32_t> pending_steps_{ 0 };
+  std::atomic<bool> step_diverged_{ false };
+  std::atomic<bool> steps_interrupted_{ false };
+  std::atomic<bool> keyboard_step_requested_{ false };
+  std::atomic<uint64_t> step_count_{ 0 };
+  std::mutex steps_cv_mutex_;
+  std::condition_variable steps_cv_;
 
   // Storage for initial state (used for reset_world)
   std::vector<mjtNum> initial_qpos_;
   std::vector<mjtNum> initial_qvel_;
   std::vector<mjtNum> initial_ctrl_;
   std::string initial_keyframe_ = "";
+
+  // Dedicated buffer for plugin xfrc contributions.
+  //
+  // mj_copyData contaminates mj_data_control_->xfrc_applied with viewer forces, so we cannot
+  // rely on mj_data_control_->xfrc_applied to hold plugin forces across physics iterations.
+  // Instead, the control thread (read()) zeroes mj_data_control_->xfrc_applied before every
+  // plugin update, lets plugins write fresh forces, then copies the result here.  The physics
+  // thread uses this buffer (not mj_data_control_->xfrc_applied) when composing each mj_step.
+  // Because this buffer is never touched by mj_copyData, it holds the last plugin contribution
+  // cleanly until the next control cycle — no restore and no undo mechanism required.
+  std::vector<mjtNum> xfrc_viewer_capture_;  ///< viewer-only forces (drag), used per inner step
+  std::vector<mjtNum> xfrc_plugin_desired_;  ///< plugin forces, set once per control cycle
+  /// Last value written to mj_data_->xfrc_applied by the physics loop (viewer + plugin).
+  /// Used at the start of each outer iteration to detect whether the render thread ran
+  /// (and zeroed/re-applied drag) since the last physics step.  If mj_data_->xfrc_applied
+  /// matches this buffer, the render thread did not run and xfrc_viewer_capture_ is still valid.
+  std::vector<mjtNum> xfrc_last_restore_;
 };
 
 }  // namespace mujoco_ros2_control
