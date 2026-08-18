@@ -1,6 +1,6 @@
 # MuJoCo ros2_control
 
-[![Rdev](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Kdev](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Jdev](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Hdev](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/badge/icon)](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/) [![CI](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml/badge.svg)](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml) ![License](https://img.shields.io/github/license/ros-controls/mujoco_ros2_control) [![Codecov](https://codecov.io/gh/ros-controls/mujoco_ros2_control/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-controls/mujoco_ros2_control)
+[![Rdev](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_resolute_amd64/badge/icon)](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_resolute_amd64/) [![Ldev](https://build.ros2.org/job/Ldev__mujoco_ros2_control__ubuntu_resolute_amd64/badge/icon)](https://build.ros2.org/job/Ldev__mujoco_ros2_control__ubuntu_resolute_amd64/) [![Kdev](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Jdev](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Hdev](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/badge/icon)](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/) [![CI](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml/badge.svg)](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml) ![License](https://img.shields.io/github/license/ros-controls/mujoco_ros2_control) [![Codecov](https://codecov.io/gh/ros-controls/mujoco_ros2_control/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-controls/mujoco_ros2_control)
 
 This repository provides a ros2_control system interface and supporting packages to run ROS 2 controllers against the MuJoCo physics simulator.
 
@@ -10,6 +10,7 @@ This project wraps MuJoCo as a hardware/system interface so you can use the ros2
 
 - `mujoco_ros2_control` - core system interface plugin and resources
 - `mujoco_ros2_control_msgs` - message/service definitions used by the plugin
+- `mujoco_ros2_control_plugins` - optional plugins that extend simulation capabilities
 - `mujoco_ros2_control_demos` - demo launch files, configs and example robots
 - `mujoco_ros2_control_tests` - integration / launch tests and simple examples
 - `docker/` - Dockerfiles and scripts to run CI/containers
@@ -18,6 +19,7 @@ This project wraps MuJoCo as a hardware/system interface so you can use the ros2
 
 - Full ros2_control SystemInterface plugin for MuJoCo
 - MJCF/URDF conversion utilities to auto-generate MuJoCo models
+- Optional plugin system for extending simulation with custom publishers and services
 - Example demos showing basic control, PID and transmission setups
 
 ## Quick start
@@ -69,16 +71,16 @@ See [mujoco_ros2_control/README.md](./mujoco_ros2_control/README.md) for detaile
 
 Supported ROS 2 distributions
 - The project is developed and tested against multiple ROS 2 distributions.
-  This README includes basic notes for: `Humble`, `Kilted`, `Jazzy` and
-  `Rolling`.
+  This README includes basic notes for: `Humble`, `Jazzy`, `Kilted`, `Lyrical`, and `Rolling`.
 
 ### Support matrix
 
 | Distribution | Status |
 | --- | --- |
 | Humble | Supported |
-| Kilted | Supported |
 | Jazzy | Supported |
+| Kilted | Supported |
+| Lyrical | Supported |
 | Rolling | Supported (development) |
 
 ### Contributing
