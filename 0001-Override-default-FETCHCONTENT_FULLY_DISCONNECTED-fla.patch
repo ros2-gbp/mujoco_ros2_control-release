@@ -1,4 +1,4 @@
-From ed8ecc689138815dd9e5f85d0d358a16ea780aae Mon Sep 17 00:00:00 2001
+From d047d9cb181f41aeabe1c8a6525e6209df8cadcc Mon Sep 17 00:00:00 2001
 From: Sai Kishor Kothakota <sai.kishor@pal-robotics.com>
 Date: Mon, 16 Mar 2026 10:21:39 +0100
 Subject: [PATCH] Override default FETCHCONTENT_FULLY_DISCONNECTED flag
@@ -20,5 +20,5 @@ index a856369..b36b206 100755
  
  override_dh_auto_build:
 -- 
-2.34.1
+2.43.0
 
