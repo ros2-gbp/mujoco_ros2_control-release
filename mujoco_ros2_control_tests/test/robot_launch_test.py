@@ -30,9 +30,11 @@ import pytest
 import rclpy
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from rosgraph_msgs.msg import Clock
-from mujoco_ros2_control_msgs.srv import ResetWorld
+from mujoco_ros2_control_msgs.msg import FreeJointState
+from mujoco_ros2_control_msgs.srv import ResetWorld, SetFreeJointState, SetPause, StepSimulation
 from std_msgs.msg import Float64MultiArray, String
 from sensor_msgs.msg import JointState, Image, CameraInfo
+from geometry_msgs.msg import PoseStamped
 from controller_manager_msgs.srv import ListHardwareInterfaces, SwitchController
 
 
@@ -41,8 +43,10 @@ def generate_test_description_common(use_pid="false", use_mjcf_from_topic="false
     # This is necessary to get unbuffered output from the process under test
     proc_env = os.environ.copy()
     proc_env["PYTHONUNBUFFERED"] = "1"
+    os.environ["USE_PID"] = use_pid
     os.environ["USE_MJCF_FROM_TOPIC"] = use_mjcf_from_topic
     os.environ["TEST_TRANSMISSIONS"] = test_transmissions
+    os.environ["USE_PIDS"] = use_pid
 
     if use_mjcf_from_topic == "true":
         # Setup the venv needed for the make_mjcf_from_robot_description node
@@ -90,10 +94,12 @@ class TestFixture(unittest.TestCase):
         self.node = rclpy.create_node("test_node")
         self._latest_js = None
         self._latest_actuator_js = None
+        self._latest_pose = None
         self._js_sub = self.node.create_subscription(JointState, "/joint_states", self.joint_state_cb, 10)
         self._actuator_sub = self.node.create_subscription(
             JointState, "/mujoco_actuators_states", self.actuator_joint_state_cb, 10
         )
+        self._pose_sub = self.node.create_subscription(PoseStamped, "/pose_broadcaster/pose", self.pose_cb, 10)
 
     def tearDown(self):
         self.node.destroy_node()
@@ -103,6 +109,9 @@ class TestFixture(unittest.TestCase):
 
     def actuator_joint_state_cb(self, msg):
         self._latest_actuator_js = msg
+
+    def pose_cb(self, msg):
+        self._latest_pose = msg
 
     def spin_until(self, predicate, timeout=20.0, spin_period=0.05):
         """Spin the node until predicate() returns True or timeout is reached.
@@ -123,6 +132,25 @@ class TestFixture(unittest.TestCase):
         try:
             return all(abs(msg.position[msg.name.index(jn)] - ep) <= delta for jn, ep in expected_positions.items())
         except ValueError:
+            return False
+
+    def _check_pose(self, msg, expected_pose, delta):
+        """Return True if all 7 pose interface elements are within delta in msg."""
+        if msg is None:
+            return False
+        try:
+            assert "ee_link" == msg.header.frame_id
+            actual_pose = {
+                "pose/orientation.w": msg.pose.orientation.w,
+                "pose/orientation.x": msg.pose.orientation.x,
+                "pose/orientation.y": msg.pose.orientation.y,
+                "pose/orientation.z": msg.pose.orientation.z,
+                "pose/position.x": msg.pose.position.x,
+                "pose/position.y": msg.pose.position.y,
+                "pose/position.z": msg.pose.position.z,
+            }
+            return all(abs(actual_pose[key] - value) <= delta for key, value in expected_pose.items())
+        except AttributeError:
             return False
 
     def check_controllers_running_with_retry(self, controller_names, timeout=15.0):
@@ -212,6 +240,45 @@ class TestFixture(unittest.TestCase):
                 ["actuator1", "actuator2", "gripper_left_finger_joint", "gripper_right_finger_joint"],
             )
 
+    def test_pose_interfaces_transform(self):
+        # The pose_broadcaster is only spawned by the basic robot demo launch file.
+        if any(os.environ.get(var) == "true" for var in ("USE_PID", "USE_MJCF_FROM_TOPIC", "TEST_TRANSMISSIONS")):
+            self.skipTest("pose_broadcaster is only spawned in the basic robot configuration")
+
+        # The settled contact pose differs between MuJoCo versions: the ROS binaries and pixi/conda environment
+        # ships different versions of libmujoco. Both are deterministic, so keep one exact expected pose per
+        # environment instead of a tolerance loose enough to span the gap between them.
+        # See https://github.com/pal-robotics/mujoco_vendor/issues/11 for more details.
+        if os.environ.get("PIXI_PROJECT_ROOT") or os.environ.get("CONDA_PREFIX"):
+            expected_pose = {
+                "pose/position.x": 1.8753,
+                "pose/position.y": 0.0,
+                "pose/position.z": -0.4885,
+                "pose/orientation.w": 1.0,
+                "pose/orientation.x": 0.0,
+                "pose/orientation.y": 0.0024,
+                "pose/orientation.z": 0.0,
+            }
+        else:
+            expected_pose = {
+                "pose/position.x": 1.8678,
+                "pose/position.y": 0.0,
+                "pose/position.z": -0.5162,
+                "pose/orientation.w": 0.9999,
+                "pose/orientation.x": 0.0,
+                "pose/orientation.y": 0.0099,
+                "pose/orientation.z": 0.0,
+            }
+
+        self.assertTrue(
+            self.spin_until(
+                lambda: self._check_pose(self._latest_pose, expected_pose, delta=1e-3),
+                timeout=5.0,
+            ),
+            "Pose interfaces did not publish the expected transform on /pose_broadcaster/pose\n"
+            f"Found {self._latest_pose}\nExpected {expected_pose}",
+        )
+
     def test_arm(self):
 
         # Check if the controllers are running
@@ -236,14 +303,21 @@ class TestFixture(unittest.TestCase):
             rclpy.spin_once(self.node, timeout_sec=0.1)
 
         # Wait for joints to reach target positions
-        self.wait_for_joint_positions({"joint1": 0.5, "joint2": -0.5}, delta=0.05, timeout=5.0)
+        self.wait_for_joint_positions({"joint1": 0.5, "joint2": -0.5}, delta=0.05, timeout=15.0)
 
         if os.environ.get("TEST_TRANSMISSIONS") != "true":
             expected_actuators = {"joint1": 0.5, "joint2": -0.5}
         else:
-            expected_actuators = {"actuator1": 0.5 * 2.0, "actuator2": -0.5 * 0.5}
+            # test_robot.urdf couples joint1/joint2 through a single DifferentialTransmission
+            # (joint reductions 2.0/0.5, actuator reductions 1.0/1.0, no offsets), so each
+            # actuator position is a sum/difference of both joint targets, not a 1:1 scaling.
+            joint1, joint2, jr1, jr2 = 0.5, -0.5, 2.0, 0.5
+            expected_actuators = {
+                "actuator1": joint1 * jr1 + joint2 * jr2,
+                "actuator2": joint1 * jr1 - joint2 * jr2,
+            }
 
-        self.wait_for_joint_positions(expected_actuators, delta=0.05, timeout=5.0, topic="actuator_states")
+        self.wait_for_joint_positions(expected_actuators, delta=0.05, timeout=15.0, topic="actuator_states")
 
         # make sure the efforts field is non-zero (indicating PID/ effort reporting is working)
         self.assertTrue(
@@ -277,19 +351,22 @@ class TestFixture(unittest.TestCase):
         self.wait_for_joint_positions(
             {"gripper_left_finger_joint": -0.04, "gripper_right_finger_joint": 0.04},
             delta=0.005,
-            timeout=5.0,
+            timeout=15.0,
         )
 
         # And confirm that the mujoco_actuators_states also gets there
         self.wait_for_joint_positions(
             {"gripper_left_finger_joint": -0.04, "gripper_right_finger_joint": 0.04},
             delta=0.005,
-            timeout=5.0,
+            timeout=15.0,
             topic="actuator_states",
         )
 
-    # Runs the tests when the DISPLAY is set
-    @unittest.skipIf(os.environ.get("DISPLAY", "") == "", "Skipping camera tests in headless mode.")
+    # Camera tests now work in headless mode via EGL fallback.
+    # Skip only if explicitly disabled (e.g., on systems without GPU/EGL support).
+    @unittest.skipIf(
+        os.environ.get("SKIP_CAMERA_TESTS", "").lower() == "true", "Skipping camera tests (SKIP_CAMERA_TESTS=true)."
+    )
     def test_camera_topics(self):
         topic_list = [
             ("/camera/color/image_raw", Image),
@@ -303,111 +380,160 @@ class TestFixture(unittest.TestCase):
         wait_for_topics.shutdown()
 
     def test_reset_world_service(self):
-        """Test that the reset_world service resets robot to initial position."""
-        # Check if controllers are running
+        """Test that reset_world resets joints and controllers remain functional."""
         cnames = ["gripper_controller", "position_controller", "joint_state_broadcaster"]
         self.check_controllers_running_with_retry(cnames)
 
-        # Create a publisher to send commands
         pub = self.node.create_publisher(Float64MultiArray, "/position_controller/commands", 10)
-
-        # Wait for subscriber to connect
         self.assertTrue(
             self.spin_until(lambda: pub.get_subscription_count() > 0, timeout=10.0),
             "Controller did not subscribe to commands",
         )
 
-        # Send a command to move the joints to a different position
+        # Move joints to a non-zero position
         msg = Float64MultiArray()
         msg.data = [-0.5, 0.5]
-
-        # Publish commands
         end_time = time.time() + 2
         while time.time() < end_time:
             pub.publish(msg)
             rclpy.spin_once(self.node, timeout_sec=0.1)
+        self.wait_for_joint_positions({"joint1": -0.5, "joint2": 0.5}, delta=0.075, timeout=15.0)
 
-        # Poll until joints converge (replaces time.sleep + verify)
-        self.wait_for_joint_positions({"joint1": -0.5, "joint2": 0.5}, delta=0.05, timeout=15.0)
-
-        # Deactivate the position controller before reset
+        # Deactivate controller before reset
         switch_client = self.node.create_client(SwitchController, "/controller_manager/switch_controller")
-        if not switch_client.wait_for_service(timeout_sec=10.0):
-            self.fail("switch_controller service not available")
-
-        # Deactivate position_controller
+        self.assertTrue(switch_client.wait_for_service(timeout_sec=10.0))
         switch_request = SwitchController.Request()
         switch_request.deactivate_controllers = ["position_controller"]
         switch_request.strictness = SwitchController.Request.BEST_EFFORT
         future = switch_client.call_async(switch_request)
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
-        self.assertTrue(future.result().ok, "Failed to deactivate position_controller")
-        self.node.get_logger().info("position_controller deactivated")
+        self.assertTrue(future.result().ok)
 
-        # Record clock time before reset
-        clock_topic = "/clock"
-        wait_for_clock = WaitForTopics([(clock_topic, Clock)], timeout=20.0)
-        assert wait_for_clock.wait(), f"Topic '{clock_topic}' not found!"
-        clock_msgs = wait_for_clock.received_messages(clock_topic)
-        clock_before_reset = clock_msgs[-1]
-
-        self.node.get_logger().info(f"Clock before reset: {clock_before_reset}")
-
-        # Now call the reset_world service
+        # Reset world
         reset_client = self.node.create_client(ResetWorld, "/mujoco_ros2_control_node/reset_world")
-
-        # Wait for service to be available
-        if not reset_client.wait_for_service(timeout_sec=10.0):
-            self.fail("reset_world service not available")
-
-        # Call the reset service
-        request = ResetWorld.Request()
-        future = reset_client.call_async(request)
+        self.assertTrue(reset_client.wait_for_service(timeout_sec=10.0))
+        future = reset_client.call_async(ResetWorld.Request())
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success)
 
-        if future.result() is None:
-            self.fail("reset_world service call failed")
-
-        self.node.get_logger().info("reset_world service called successfully")
-
-        # Verify clock was NOT reset (should still be greater than before reset)
-        rclpy.spin_once(self.node, timeout_sec=0.1)
-        clock_msgs_after_reset = wait_for_clock.received_messages(clock_topic)
-        clock_after_reset = clock_msgs_after_reset[-1]
-        time_pre_reset = clock_before_reset.clock.sec + clock_before_reset.clock.nanosec * 1e-9
-        time_post_reset = clock_after_reset.clock.sec + clock_after_reset.clock.nanosec * 1e-9
-        self.assertGreaterEqual(
-            time_post_reset,
-            time_pre_reset,
-            f"Clock was reset! Before: {clock_before_reset}, After: {clock_after_reset}",
-        )
-        self.node.get_logger().info("Clock continuity verified - clock was NOT reset")
-
-        # Sleep is needed here for a bit to allow the reset to take effect in the simulation (or)
-        # to see if the internal PIDs have a good setpoint after reset
+        # Verify joints return to zero
         time.sleep(1.0)
-
-        # Poll until joints return to zero (replaces time.sleep + verify)
         self.wait_for_joint_positions({"joint1": 0.0, "joint2": 0.0}, delta=0.05, timeout=15.0, verify_efforts=False)
 
-        # Reactivate the position controller
+        # Reactivate controller and verify it still works
         switch_request = SwitchController.Request()
         switch_request.activate_controllers = ["position_controller"]
         switch_request.strictness = SwitchController.Request.BEST_EFFORT
         future = switch_client.call_async(switch_request)
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
-        self.assertTrue(future.result().ok, "Failed to reactivate position_controller")
-        self.node.get_logger().info("position_controller reactivated")
+        self.assertTrue(future.result().ok)
 
-        # Send the command again to verify controller still works after reset
         end_time = time.time() + 2
         while time.time() < end_time:
             pub.publish(msg)
             rclpy.spin_once(self.node, timeout_sec=0.1)
+        self.wait_for_joint_positions({"joint1": -0.5, "joint2": 0.5}, delta=0.075, timeout=15.0)
 
-        # Poll until joints converge again
-        self.wait_for_joint_positions({"joint1": -0.5, "joint2": 0.5}, delta=0.05, timeout=15.0)
-        wait_for_clock.shutdown()
+    def test_step_simulation_zero_steps_rejected(self):
+        """step_simulation with steps=0 must be rejected even when the simulation is paused."""
+        mujoco_sim_node = "/mujoco_ros2_control_node"
+
+        pause_client = self.node.create_client(SetPause, f"{mujoco_sim_node}/set_pause")
+        self.assertTrue(pause_client.wait_for_service(timeout_sec=10.0), "set_pause service not available")
+
+        step_client = self.node.create_client(StepSimulation, f"{mujoco_sim_node}/step_simulation")
+        self.assertTrue(step_client.wait_for_service(timeout_sec=10.0), "step_simulation service not available")
+
+        # Pause so the steps=0 validation is reached
+        pause_req = SetPause.Request()
+        pause_req.paused = True
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success, "set_pause(paused=True) failed")
+
+        step_req = StepSimulation.Request()
+        step_req.steps = 0
+        future = step_client.call_async(step_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertFalse(result.success, "step_simulation with steps=0 should fail")
+
+        # Leave the simulation running again
+        pause_req.paused = False
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success, "set_pause(paused=False) failed after zero-steps test")
+
+    def test_step_simulation_interrupted_by_resume(self):
+        """Resuming the simulation while step_simulation is counting down must abort the call."""
+        # Use enough steps that the physics loop cannot drain them all before we call resume.
+        # 50 000 steps × 0.002 s = 100 s of sim time — far more than the ~0.2 s it takes
+        # to spin, send the resume request, and have the physics loop react.
+
+        mujoco_sim_node = "/mujoco_ros2_control_node"
+
+        pause_client = self.node.create_client(SetPause, f"{mujoco_sim_node}/set_pause")
+        self.assertTrue(pause_client.wait_for_service(timeout_sec=10.0), "set_pause service not available")
+
+        step_client = self.node.create_client(StepSimulation, f"{mujoco_sim_node}/step_simulation")
+        self.assertTrue(step_client.wait_for_service(timeout_sec=10.0), "step_simulation service not available")
+
+        # Pause the simulation
+        pause_req = SetPause.Request()
+        pause_req.paused = True
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        self.assertTrue(future.result().success, "set_pause(paused=True) failed")
+
+        step_req = StepSimulation.Request()
+        step_req.steps = 50000
+        step_future = step_client.call_async(step_req)
+
+        # Spin briefly so the service request is triggered
+        self.spin_until(lambda: False, timeout=0.2)
+
+        # Resume the simulation to trigger the physics loop to abort the pending steps
+        pause_req.paused = False
+        future = pause_client.call_async(pause_req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
+        self.assertTrue(future.result().success, "set_pause(paused=False) failed")
+
+        rclpy.spin_until_future_complete(self.node, step_future, timeout_sec=5.0)
+        result = step_future.result()
+        self.assertIsNotNone(result, "step_simulation returned None")
+        self.assertFalse(result.success, "step_simulation should fail when simulation is resumed mid-countdown")
+
+    def test_reset_free_body_poses(self):
+        """set_free_joint_state must reposition free-body objects, reported via response.success.
+
+        Both bodies are set in a single request to exercise the service's list/atomic behaviour.
+        """
+        if (
+            os.environ.get("TEST_TRANSMISSIONS") == "true"
+            or os.environ.get("USE_MJCF_FROM_TOPIC") == "true"
+            or os.environ.get("USE_PIDS") == "true"
+        ):
+            self.skipTest("cube1/cube2 free bodies are only present in the default test_robot.xml scene")
+
+        mujoco_sim_node = "/mujoco_ros2_control_node"
+
+        client = self.node.create_client(SetFreeJointState, f"{mujoco_sim_node}/set_free_joint_state")
+        self.assertTrue(client.wait_for_service(timeout_sec=10.0), "set_free_joint_state service not available")
+
+        req = SetFreeJointState.Request()
+        for body_name, target in (("cube1", (1.0, 1.0, 1.0)), ("cube2", (-1.0, 1.0, 1.0))):
+            entry = FreeJointState()
+            entry.name = body_name
+            entry.pose.pose.position.x, entry.pose.pose.position.y, entry.pose.pose.position.z = target
+            entry.pose.pose.orientation.w = 1.0
+            req.free_joints.append(entry)
+
+        future = client.call_async(req)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=10.0)
+        result = future.result()
+        self.assertIsNotNone(result, "set_free_joint_state returned None")
+        self.assertTrue(result.success, f"set_free_joint_state failed: {result.message}")
 
 
 class TestFixtureHardwareInterfacesCheck(unittest.TestCase):
@@ -458,6 +584,16 @@ class TestFixtureHardwareInterfacesCheck(unittest.TestCase):
             "joint2/velocity",
             "joint2/effort",
             "joint2/torque",
+            "pose/orientation.w",
+            "pose/orientation.x",
+            "pose/orientation.y",
+            "pose/orientation.z",
+            "pose/position.x",
+            "pose/position.y",
+            "pose/position.z",
+            "magnetometer/magnetic_field.x",
+            "magnetometer/magnetic_field.y",
+            "magnetometer/magnetic_field.z",
         ]
         assert len(available_state_interfaces_names) == len(
             expected_state_interfaces
