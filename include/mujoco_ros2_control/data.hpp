@@ -34,7 +34,7 @@ namespace mujoco_ros2_control
  * Maps to MuJoCo actuator types:
  *  - MOTOR for MuJoCo motor actuator
  *  - POSITION for MuJoCo position actuator
- *  - VELOCITY for MuJoCo velocity actuator
+ *  - VELOCITY for MuJoCo velocity and integrated-velocity actuators
  *  - CUSTOM  for MuJoCo general actuator or other types
  *
  * \note the MuJoCo types are as per the MuJoCo documentation:
@@ -214,6 +214,19 @@ struct IMUSensorData
   std::vector<double> orientation_covariance;
   std::vector<double> angular_velocity_covariance;
   std::vector<double> linear_acceleration_covariance;
+};
+
+struct SitePoseData
+{
+  std::string name;
+  SensorData<Eigen::Vector3d> position;
+  SensorData<Eigen::Quaterniond> orientation;
+};
+
+struct MagnetometerSensorData
+{
+  std::string name;
+  SensorData<Eigen::Vector3d> magnetic_field;
 };
 
 }  // namespace mujoco_ros2_control
