@@ -1,1 +1,1 @@
-{"base": "7f7ec1dc57b1", "parent": "debian/rolling/mujoco_ros2_control_plugins", "previous": "3658ea2b8e5a", "trim": "", "trimbase": ""}
+{"base": "0014caf", "parent": "debian/rolling/mujoco_ros2_control_plugins", "previous": "eade3b2", "trim": "", "trimbase": ""}
