@@ -1,0 +1,49 @@
+ros-lyrical-mujoco-ros2-control-plugins (0.1.0-1trixie) trixie; urgency=high
+
+  * Add a pre-step callback to the simulation (#282 <https://github.com/ros-controls/mujoco_ros2_control/issues/282>)
+    Co-authored-by: Sai Kishor Kothakota <mailto:sai.kishor@pal-robotics.com>
+  * Add base twist plugin for commanding the mobile base (#254 <https://github.com/ros-controls/mujoco_ros2_control/issues/254>)
+  * [doc] Fix undefined label errors (#260 <https://github.com/ros-controls/mujoco_ros2_control/issues/260>)
+  * Add missing documentation (#249 <https://github.com/ros-controls/mujoco_ros2_control/issues/249>)
+  * Add missing dependencies (#250 <https://github.com/ros-controls/mujoco_ros2_control/issues/250>)
+  * [CI] Fix dependency declarations for bloom (#226 <https://github.com/ros-controls/mujoco_ros2_control/issues/226>)
+  * MuJoCo free joints state publisher plugin (#247 <https://github.com/ros-controls/mujoco_ros2_control/issues/247>)
+  * Fix CameraPlugin default frame name to be consistent with docs.  (#242 <https://github.com/ros-controls/mujoco_ros2_control/issues/242>)
+    Co-authored-by: Erik Holum <mailto:erik.holum@nasa.gov>
+  * Make CI tests more robust (#239 <https://github.com/ros-controls/mujoco_ros2_control/issues/239>)
+  * Fix links in interface docs, use auto label generator like the upstream (#238 <https://github.com/ros-controls/mujoco_ros2_control/issues/238>)
+  * Add Plugin for the 3D Lidar Extension (#207 <https://github.com/ros-controls/mujoco_ros2_control/issues/207>)
+  * Fix plugin export so that downstream plugins don't fail (#215 <https://github.com/ros-controls/mujoco_ros2_control/issues/215>)
+    Co-authored-by: Erik Holum <mailto:erik.holum@nasa.gov>
+  * Support polling, streaming, and disabled cameras in camera plugin (#217 <https://github.com/ros-controls/mujoco_ros2_control/issues/217>)
+  * Refactor Rangefinder base Lidar as a Plugin (#214 <https://github.com/ros-controls/mujoco_ros2_control/issues/214>)
+  * Refactor RGB-D Cameras to a Plugin (#211 <https://github.com/ros-controls/mujoco_ros2_control/issues/211>)
+    Co-authored-by: Erik Holum <mailto:erik.holum@nasa.gov>
+    Co-authored-by: Sai Kishor Kothakota <mailto:saisastra3@gmail.com>
+  * Migrate documentation to rst format for control.ros.org (#188 <https://github.com/ros-controls/mujoco_ros2_control/issues/188>)
+  * Contributors: Christian Rauch, Erik Holum, Nathan Dunkelberger, Sai Kishor Kothakota, Sebastian Castro, msavchen-nasa, pang-yann
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Mon, 17 Aug 2026 22:00:00 -0000
+
+ros-lyrical-mujoco-ros2-control-plugins (0.0.3-1trixie) trixie; urgency=high
+
+  * Add macro check using realtime_tools_MAJOR_VERSION (#181 <https://github.com/ros-controls/mujoco_ros2_control/issues/181>)
+  * Add more useful plugins for the mujoco_ros2_control (#165 <https://github.com/ros-controls/mujoco_ros2_control/issues/165>)
+  * Contributors: Sai Kishor Kothakota, Erik Holum
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Thu, 30 Apr 2026 22:00:00 -0000
+
+ros-lyrical-mujoco-ros2-control-plugins (0.0.2-1trixie) trixie; urgency=high
+
+  * [Feature] MuJoCo ros2 control plugins (#133 <https://github.com/ros-controls/mujoco_ros2_control/issues/133>)
+  * Contributors: Sai Kishor Kothakota, Erik Holum
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Mon, 16 Mar 2026 23:00:00 -0000
+
+ros-lyrical-mujoco-ros2-control-plugins (0.0.1-1trixie) trixie; urgency=high
+
+
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
