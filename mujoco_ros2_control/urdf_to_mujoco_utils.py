@@ -85,8 +85,30 @@ def remove_tag(xml_string, tag_to_remove):
 
 
 def extract_mesh_info(raw_xml, asset_dir, decompose_dict):
+    """
+    Builds a dictionary of all unique visual meshes in the URDF and rewrites the
+    raw_xml so every mesh filename points at a disambiguated path. There are some
+    gotchas:
+
+    - Different URDF meshes can share a filename stem, so colliding stems get an
+      "__N" suffix so each resolves to its own asset directory. For example, if
+      running multiple UR types there will be a shoulder/ and shoulder__1/ directory.
+    - This happens BEFORE the pregen lookup. So if the asset_dir already
+      contains shoulder/ and shoulder__1/ from a prior run, the first source
+      will grab shoulder and the second source will grab shoulder__1.
+    - stem_to_original_uri tracks which source uri claimed each stem slot, in
+      an effort to avoid unnecessary copying.
+    - A subset-equality check on (is_pre_generated, filename, scale, color) dedupes
+      entries that genuinely match based on those criteria.
+
+    Returns (mesh_info_dict, rewritten raw_xml). Each entry will have
+    carries {is_pre_generated, filename (source path), scale, color, and
+    new_filepath}.
+    """
+
     robot = URDF.from_xml_string(raw_xml)
     mesh_info_dict = {}
+    stem_to_original_uri = {}
 
     robot_materials = dict()
     for material in robot.materials:
@@ -112,14 +134,20 @@ def extract_mesh_info(raw_xml, asset_dir, decompose_dict):
                 continue
 
             uri = geom.filename  # full URI
-            stem = pathlib.Path(uri).stem  # filename without extension
+            original_stem = pathlib.Path(uri).stem  # NEW: remember original for disambiguation
+            stem = original_stem
+            counter = 0
+            while stem in stem_to_original_uri and stem_to_original_uri[stem] != uri:
+                counter += 1
+                stem = f"{original_stem}__{counter}"
+            stem_to_original_uri[stem] = uri
 
             # Select the mesh file: use a pre-generated OBJ if available and valid; otherwise use the original
             is_pre_generated = False
             new_uri = uri  # default fallback
 
             if asset_dir:
-                if stem in decompose_dict:
+                if original_stem in decompose_dict:
                     # Decomposed mesh: check if a pre-generated OBJ exists and threshold matches
                     mesh_file = f"{asset_dir}/{DECOMPOSED_PATH_NAME}/{stem}/{stem}/{stem}.obj"
                     settings_file = f"{asset_dir}/{DECOMPOSED_PATH_NAME}/metadata.json"
@@ -134,7 +162,7 @@ def extract_mesh_info(raw_xml, asset_dir, decompose_dict):
                             used_threshold = None
                         # Use existing decomposed object only if it has the same threshold, otherwise regenerate it.
                         if used_threshold is not None and math.isclose(
-                            used_threshold, float(decompose_dict[stem]), rel_tol=1e-9
+                            used_threshold, float(decompose_dict[original_stem]), rel_tol=1e-9
                         ):
                             new_uri = mesh_file
                             is_pre_generated = True
@@ -142,7 +170,7 @@ def extract_mesh_info(raw_xml, asset_dir, decompose_dict):
                         else:
                             print(
                                 f"Existing decomposed obj for {stem} has different threshold {used_threshold} "
-                                f"than required {decompose_dict[stem]}. Regenerating..."
+                                f"than required {decompose_dict[original_stem]}. Regenerating..."
                             )
                 else:
                     # Composed mesh: check if a pre-generated OBJ exists
@@ -156,16 +184,42 @@ def extract_mesh_info(raw_xml, asset_dir, decompose_dict):
             scale = " ".join(f"{v}" for v in geom.scale) if geom.scale else "1.0 1.0 1.0"
             rgba = resolve_color(vis)
 
-            # If the same stem appears more than once, keep the first, or change as you prefer
-            mesh_info_dict.setdefault(
-                stem,
-                {
+            mesh_dict_value = {
+                "is_pre_generated": is_pre_generated,
+                "filename": new_uri,
+                "scale": scale,
+                "color": rgba,
+            }
+
+            # check to see if the values we are trying to add already exist
+            existing_identifier = None
+            for key, value in mesh_info_dict.items():
+                if mesh_dict_value.items() <= value.items():
+                    existing_identifier = key
+                    break
+
+            # if the values we want to add are not in the dictionary yet, add them
+            if existing_identifier is None:
+                # get the name of the new file so that we can reference it later, but grab correct
+                # pre generated asset if it exists
+                path_obj = pathlib.Path(new_uri)
+                if is_pre_generated:
+                    new_filepath = str(path_obj.parent.parent / stem / (stem + path_obj.suffix))
+                else:
+                    new_filepath = str(path_obj.parent / (stem + path_obj.suffix))
+
+                # add the unique name to the dictionary
+                mesh_info_dict[stem] = {
                     "is_pre_generated": is_pre_generated,
                     "filename": new_uri,
                     "scale": scale,
                     "color": rgba,
-                },
-            )
+                    "new_filepath": new_filepath,
+                }
+
+                # if we changed the identifier, make sure we update it in the underlying file
+                if stem != pathlib.Path(new_uri).stem:
+                    raw_xml = raw_xml.replace(new_uri, new_filepath)
 
     return mesh_info_dict, raw_xml
 
@@ -534,6 +588,8 @@ def get_processed_mujoco_inputs(processed_inputs_element):
             min_angle = float(lidar_element.getAttribute("min_angle"))
             max_angle = float(lidar_element.getAttribute("max_angle"))
             angle_increment = float(lidar_element.getAttribute("angle_increment"))
+            if angle_increment <= 0:
+                raise ValueError("'angle_increment' must be greater than zero for a 'lidar' tag!")
 
             num_sensors = int((max_angle - min_angle) / angle_increment) + 1
 
@@ -564,20 +620,34 @@ def get_processed_mujoco_inputs(processed_inputs_element):
 
             # get the attributes from the modify_element_tag
             attr_dict = {attr.name: attr.value for attr in modify_element_element.attributes.values()}
-            # we must have a name element
-            if "name" not in attr_dict or "type" not in attr_dict:
-                raise ValueError("'name' and 'type' must be in the attributes of a 'modify_element' tag!")
 
-            # remove the name and type entries because those will be used as the key in the returned dict
-            element_name = attr_dict["name"]
-            element_type = attr_dict["type"]
-            del attr_dict["name"]
-            del attr_dict["type"]
-            modify_element_dict[(element_type, element_name)] = attr_dict
+            # we must have a type element
+            element_type = attr_dict.pop("type", None)
+            if element_type is None:
+                raise ValueError("'type' must be in the attributes of a 'modify_element' tag!")
 
-            print(f"Will add the following attributes to {element_type} '{element_name}':")
-            for key, value in attr_dict.items():
-                print(f"  {key}: {value}")
+            if element_type == "geom":
+                mesh_name = attr_dict.pop("mesh", None)
+                if mesh_name is None:
+                    raise ValueError("'mesh' must be in the attributes of a 'modify_element' tag!")
+
+                geom_class = attr_dict.pop("class", None)
+                if geom_class is None:
+                    raise ValueError("'class' must be in the attributes of a 'modify_element' tag!")
+                key = (element_type, (mesh_name, geom_class))
+                identifier_str = f"mesh='{mesh_name}'" + (f", class='{geom_class}'")
+            else:
+                element_name = attr_dict.pop("name", None)
+                if element_name is None:
+                    raise ValueError("'name' must be in the attributes of a 'modify_element' tag!")
+                key = (element_type, element_name)
+                identifier_str = f"name='{element_name}'"
+
+            modify_element_dict[key] = attr_dict
+
+            print(f"Will add the following attributes to {element_type} ({identifier_str}):")
+            for key_attr, value in attr_dict.items():
+                print(f"  {key_attr}: {value}")
 
     return decompose_dict, cameras_dict, modify_element_dict, lidar_dict
 
@@ -991,11 +1061,13 @@ def add_lidar_from_sites(dom, lidar_dict):
     """
 
     x_form = [0.5, 0.5, 0.5, 0.5]  # pi/2 around x, pi/2 about y
+    matched_sites = set()
 
     # Construct all lidar sensor bodies for relevant sites in xml and add them as children to the same parent
     for node in dom.getElementsByTagName("site"):
         site_name = node.getAttribute("name")
         if site_name in lidar_dict:
+            matched_sites.add(site_name)
             replicate = lidar_dict[site_name]
 
             # Handle conversion of the frames by applying the site transform, rangefinder transform, then
@@ -1024,6 +1096,10 @@ def add_lidar_from_sites(dom, lidar_dict):
                 print(f"  {attr.name}: {attr.value}")
 
             node.parentNode.appendChild(new_body)
+
+    unmatched = set(lidar_dict.keys()) - matched_sites
+    if unmatched:
+        raise ValueError(f"Lidar site(s) not found in the MJCF: {', '.join(sorted(unmatched))}")
 
     return dom
 
@@ -1060,14 +1136,30 @@ def add_modifiers(dom, modify_element_dict):
     # work on each set of element types at a time
     for element_type in types:
         element_set = worldbody_element.getElementsByTagName(element_type)
-        # check if the each element needs modification
-        for element in element_set:
-            potential_key = (element.tagName, element.getAttribute("name"))
-            if potential_key in modify_element_dict:
-                # apply attributes to the elements
-                attr_dict = modify_element_dict[potential_key]
-                for attr_name, attr_value in attr_dict.items():
-                    element.setAttribute(attr_name, attr_value)
+
+        # match by mesh and class only for geoms
+        if element_type == "geom":
+            # check if the each element needs modification
+            for element in element_set:
+                raw_mesh_name = element.getAttribute("mesh")
+                base_mesh_name = re.sub(r"_collision_\d+$", "", raw_mesh_name)
+                mesh_key = (element.tagName, (base_mesh_name, element.getAttribute("class")))
+                attr_dict = modify_element_dict.get(mesh_key)
+                if attr_dict is not None:
+                    # apply attributes to the elements
+                    for attr_name, attr_value in attr_dict.items():
+                        element.setAttribute(attr_name, attr_value)
+
+        # match by explicit name
+        else:
+            # check if the each element needs modification
+            for element in element_set:
+                name_key = (element.tagName, element.getAttribute("name"))
+                attr_dict = modify_element_dict.get(name_key)
+                if attr_dict is not None:
+                    # apply attributes to the elements
+                    for attr_name, attr_value in attr_dict.items():
+                        element.setAttribute(attr_name, attr_value)
 
     return dom
 
