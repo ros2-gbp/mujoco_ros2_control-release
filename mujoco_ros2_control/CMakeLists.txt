@@ -6,17 +6,23 @@ find_package(ros2_control_cmake REQUIRED)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(glfw3 REQUIRED)
+
 find_package(control_toolbox REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(realtime_tools REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(mujoco_ros2_control_msgs REQUIRED)
 find_package(mujoco_ros2_control_plugins REQUIRED)
 find_package(Threads REQUIRED)
@@ -28,6 +34,9 @@ find_package(TinyXML2 REQUIRED)
 # Link MuJoCo via the vendor package
 find_package(mujoco_vendor REQUIRED)
 set(MUJOCO_LIB mujoco::mujoco)
+
+# Needed for the bloom build
+set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
 
 # The vendor package may be installed in different locations depending on if it
 # was installed with apt vs pixi. So resolve the install root and use that to
@@ -145,9 +154,8 @@ endif()
 
 # MuJoCo ROS 2 control system interface (this package)
 add_library(mujoco_ros2_control SHARED
+    src/mujoco_simulation.cpp
     src/mujoco_system_interface.cpp
-    src/mujoco_cameras.cpp
-    src/mujoco_lidar.cpp
 )
 # Ensure MuJoCo library can be found at runtime regardless of how it was installed above.
 # mujoco_vendor installs libmujoco.so under opt/mujoco_vendor/lib/ relative to the
@@ -167,23 +175,30 @@ target_link_options(mujoco_ros2_control PUBLIC
 )
 target_link_libraries(mujoco_ros2_control
 PUBLIC
+  ament_index_cpp::ament_index_cpp
   hardware_interface::hardware_interface
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
+  ${geometry_msgs_TARGETS}
   ${nav_msgs_TARGETS}
-  ${sensor_msgs_TARGETS}
   ${mujoco_ros2_control_msgs_TARGETS}
   pluginlib::pluginlib
   fmt::fmt
   ${MUJOCO_LIB}
   control_toolbox::control_toolbox
   Eigen3::Eigen
+  realtime_tools::realtime_tools
+  ${rosgraph_msgs_TARGETS}
+  ${sensor_msgs_TARGETS}
 PRIVATE
   mujoco_simulate
   Threads::Threads
   lodepng
   glfw
+  ${CMAKE_DL_LIBS}
+  ${std_msgs_TARGETS}
 )
+
 # Note: the transmissions_interface must NOT be statically linked against the library, only headers
 # should be used. Otherwise it will be loaded by the linker at process startup and its
 # PLUGINLIB_EXPORT_CLASS static constructors will have run before the ClassLoaders exist. This
@@ -239,6 +254,11 @@ install(
   USE_SOURCE_PERMISSIONS
 )
 
+install(
+  FILES scripts/requirements.txt
+  DESTINATION share/${PROJECT_NAME}
+)
+
 pluginlib_export_plugin_description_file(hardware_interface mujoco_system_interface_plugin.xml)
 
 if(BUILD_TESTING)
@@ -251,12 +271,16 @@ ament_python_install_package(mujoco_ros2_control
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(
+  ament_index_cpp
   hardware_interface
   transmission_interface
   rclcpp
   rclcpp_lifecycle
-  nav_msgs
+  realtime_tools
+  rosgraph_msgs
   sensor_msgs
+  geometry_msgs
+  nav_msgs
   mujoco_ros2_control_msgs
   mujoco_ros2_control_plugins
   pluginlib
