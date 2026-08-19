@@ -1,4 +1,4 @@
-From f0cb96e72de0ea2282231d78fc2a59af88b889e4 Mon Sep 17 00:00:00 2001
+From 28b31efac557dc5d78b506dc7f6420af3f84a90e Mon Sep 17 00:00:00 2001
 From: Sai Kishor Kothakota <sai.kishor@pal-robotics.com>
 Date: Mon, 16 Mar 2026 10:21:39 +0100
 Subject: [PATCH] Override default FETCHCONTENT_FULLY_DISCONNECTED flag
