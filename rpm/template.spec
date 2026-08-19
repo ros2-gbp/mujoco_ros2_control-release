@@ -1,0 +1,158 @@
+%bcond_without tests
+%bcond_without weak_deps
+
+%global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
+%global __provides_exclude_from ^/opt/ros/kilted/.*$
+%global __requires_exclude_from ^/opt/ros/kilted/.*$
+
+%global __cmake_in_source_build 1
+
+Name:           ros-kilted-mujoco-ros2-control
+Version:        0.1.0
+Release:        2%{?dist}%{?release_suffix}
+Summary:        ROS mujoco_ros2_control package
+
+License:        Apache-2.0
+URL:            https://index.ros.org/p/mujoco_ros2_control/#kilted
+Source0:        %{name}-%{version}.tar.gz
+
+Requires:       eigen3-devel
+Requires:       fmt-devel
+Requires:       glfw-devel
+Requires:       python%{python3_pkgversion}-numpy
+Requires:       python3
+Requires:       python3-libs
+Requires:       python3-pip
+Requires:       python3-pykdl
+Requires:       ros-kilted-ament-index-cpp
+Requires:       ros-kilted-ament-index-python
+Requires:       ros-kilted-backward-ros
+Requires:       ros-kilted-control-toolbox
+Requires:       ros-kilted-controller-manager
+Requires:       ros-kilted-geometry-msgs
+Requires:       ros-kilted-hardware-interface
+Requires:       ros-kilted-mujoco-ros2-control-msgs
+Requires:       ros-kilted-mujoco-ros2-control-plugins
+Requires:       ros-kilted-mujoco-vendor
+Requires:       ros-kilted-nav-msgs
+Requires:       ros-kilted-pluginlib
+Requires:       ros-kilted-rclcpp
+Requires:       ros-kilted-rclcpp-lifecycle
+Requires:       ros-kilted-realtime-tools
+Requires:       ros-kilted-ros2pkg
+Requires:       ros-kilted-rosgraph-msgs
+Requires:       ros-kilted-sensor-msgs
+Requires:       ros-kilted-std-msgs
+Requires:       ros-kilted-tinyxml2-vendor
+Requires:       ros-kilted-transmission-interface
+Requires:       ros-kilted-urdfdom-py
+Requires:       ros-kilted-ros-workspace
+BuildRequires:  eigen3-devel
+BuildRequires:  fmt-devel
+BuildRequires:  git
+BuildRequires:  glfw-devel
+BuildRequires:  ros-kilted-ament-cmake
+BuildRequires:  ros-kilted-ament-cmake-python
+BuildRequires:  ros-kilted-ament-index-cpp
+BuildRequires:  ros-kilted-backward-ros
+BuildRequires:  ros-kilted-control-toolbox
+BuildRequires:  ros-kilted-controller-manager
+BuildRequires:  ros-kilted-geometry-msgs
+BuildRequires:  ros-kilted-hardware-interface
+BuildRequires:  ros-kilted-mujoco-ros2-control-msgs
+BuildRequires:  ros-kilted-mujoco-ros2-control-plugins
+BuildRequires:  ros-kilted-mujoco-vendor
+BuildRequires:  ros-kilted-nav-msgs
+BuildRequires:  ros-kilted-pluginlib
+BuildRequires:  ros-kilted-rclcpp
+BuildRequires:  ros-kilted-rclcpp-lifecycle
+BuildRequires:  ros-kilted-realtime-tools
+BuildRequires:  ros-kilted-ros2-control-cmake
+BuildRequires:  ros-kilted-ros2pkg
+BuildRequires:  ros-kilted-rosgraph-msgs
+BuildRequires:  ros-kilted-sensor-msgs
+BuildRequires:  ros-kilted-std-msgs
+BuildRequires:  ros-kilted-tinyxml2-vendor
+BuildRequires:  ros-kilted-transmission-interface
+BuildRequires:  ros-kilted-ros-workspace
+Provides:       %{name}-devel = %{version}-%{release}
+Provides:       %{name}-doc = %{version}-%{release}
+Provides:       %{name}-runtime = %{version}-%{release}
+
+%if 0%{?with_tests}
+BuildRequires:  ros-kilted-ament-cmake-gtest
+BuildRequires:  ros-kilted-ament-cmake-pytest
+%endif
+
+%description
+ros2_control wrapper for the MuJoCo Simulate application
+
+%prep
+%autosetup -p1
+
+%build
+# In case we're installing to a non-standard location, look for a setup.sh
+# in the install tree and source it.  It will set things like
+# CMAKE_PREFIX_PATH, PKG_CONFIG_PATH, and PYTHONPATH.
+if [ -f "/opt/ros/kilted/setup.sh" ]; then . "/opt/ros/kilted/setup.sh"; fi
+mkdir -p .obj-%{_target_platform} && cd .obj-%{_target_platform}
+%cmake3 \
+    -UINCLUDE_INSTALL_DIR \
+    -ULIB_INSTALL_DIR \
+    -USYSCONF_INSTALL_DIR \
+    -USHARE_INSTALL_PREFIX \
+    -ULIB_SUFFIX \
+    -DCMAKE_INSTALL_PREFIX="/opt/ros/kilted" \
+    -DAMENT_PREFIX_PATH="/opt/ros/kilted" \
+    -DCMAKE_PREFIX_PATH="/opt/ros/kilted" \
+    -DSETUPTOOLS_DEB_LAYOUT=OFF \
+%if !0%{?with_tests}
+    -DBUILD_TESTING=OFF \
+%endif
+    ..
+
+%make_build
+
+%install
+# In case we're installing to a non-standard location, look for a setup.sh
+# in the install tree and source it.  It will set things like
+# CMAKE_PREFIX_PATH, PKG_CONFIG_PATH, and PYTHONPATH.
+if [ -f "/opt/ros/kilted/setup.sh" ]; then . "/opt/ros/kilted/setup.sh"; fi
+%make_install -C .obj-%{_target_platform}
+
+%if 0%{?with_tests}
+%check
+# Look for a Makefile target with a name indicating that it runs tests
+TEST_TARGET=$(%__make -qp -C .obj-%{_target_platform} | sed "s/^\(test\|check\):.*/\\1/;t f;d;:f;q0")
+if [ -n "$TEST_TARGET" ]; then
+# In case we're installing to a non-standard location, look for a setup.sh
+# in the install tree and source it.  It will set things like
+# CMAKE_PREFIX_PATH, PKG_CONFIG_PATH, and PYTHONPATH.
+if [ -f "/opt/ros/kilted/setup.sh" ]; then . "/opt/ros/kilted/setup.sh"; fi
+CTEST_OUTPUT_ON_FAILURE=1 \
+    %make_build -C .obj-%{_target_platform} $TEST_TARGET || echo "RPM TESTS FAILED"
+else echo "RPM TESTS SKIPPED"; fi
+%endif
+
+%files
+/opt/ros/kilted
+
+%changelog
+* Wed Aug 19 2026 Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov> - 0.1.0-2
+- Autogenerated by Bloom
+
+* Tue Aug 18 2026 Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov> - 0.1.0-1
+- Autogenerated by Bloom
+
+* Fri May 01 2026 Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov> - 0.0.3-1
+- Autogenerated by Bloom
+
+* Tue Mar 17 2026 Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov> - 0.0.2-1
+- Autogenerated by Bloom
+
+* Mon Mar 16 2026 Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov> - 0.0.1-2
+- Autogenerated by Bloom
+
+* Tue Feb 24 2026 Nathan Dunkelberger <nathan.b.dunkelberger@nasa.gov> - 0.0.1-1
+- Autogenerated by Bloom
+
