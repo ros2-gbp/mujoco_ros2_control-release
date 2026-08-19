@@ -1,0 +1,34 @@
+ros-jazzy-mujoco-ros2-control-msgs (0.1.0-2noble) noble; urgency=high
+
+  * Refine reset world overrides functionality (#263 <https://github.com/ros-controls/mujoco_ros2_control/issues/263>)
+  * Support joint overrides in reset world service (#256 <https://github.com/ros-controls/mujoco_ros2_control/issues/256>)
+  * MuJoCo free joints state publisher plugin (#247 <https://github.com/ros-controls/mujoco_ros2_control/issues/247>)
+  * Add service to set the free joint body state (#233 <https://github.com/ros-controls/mujoco_ros2_control/issues/233>)
+  * Contributors: Sai Kishor Kothakota, Sebastian Castro
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Mon, 17 Aug 2026 22:00:00 -0000
+
+ros-jazzy-mujoco-ros2-control-msgs (0.0.3-2noble) noble; urgency=high
+
+  * Add more useful plugins for the mujoco_ros2_control (#165 <https://github.com/ros-controls/mujoco_ros2_control/issues/165>)
+  * [Feature] Add ability to run the simulation progress by steps upon pause  (#139 <https://github.com/ros-controls/mujoco_ros2_control/issues/139>)
+  * Contributors: Sai Kishor Kothakota, Erik Holum
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Thu, 30 Apr 2026 22:00:00 -0000
+
+ros-jazzy-mujoco-ros2-control-msgs (0.0.2-2noble) noble; urgency=high
+
+  * Use pixi-build-ros as the backend for pixi builds (#130 <https://github.com/ros-controls/mujoco_ros2_control/issues/130>)
+  * Update license name to SPDX standard (#129 <https://github.com/ros-controls/mujoco_ros2_control/issues/129>)
+  * Contributors: Erik Holum, Sai Kishor Kothakota
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Mon, 16 Mar 2026 23:00:00 -0000
+
+ros-jazzy-mujoco-ros2-control-msgs (0.0.1-2noble) noble; urgency=high
+
+  * Add ResetWorld service to reset to a specific defined keyframe (#95 <https://github.com/ros-controls/mujoco_ros2_control/issues/95>)
+  * Contributors: Sai Kishor Kothakota
+
+ -- "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
