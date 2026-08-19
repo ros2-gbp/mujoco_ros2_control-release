@@ -1,0 +1,12 @@
+Source: ros-kilted-mujoco-3d-lidar
+Section: misc
+Priority: optional
+Maintainer: "Jodi Graf" <jodi.s.graf@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), ros-kilted-ament-cmake, ros-kilted-mujoco-vendor, ros-kilted-ros-workspace
+Homepage: https://index.ros.org/p/mujoco_3d_lidar/#kilted
+Standards-Version: 3.9.2
+
+Package: ros-kilted-mujoco-3d-lidar
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-kilted-mujoco-vendor, ros-kilted-ros-workspace
+Description: Plugin for mujoco to use raycasters to simulate lidar
