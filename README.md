@@ -1,67 +1,92 @@
-# MuJoCo ros2_control Simulation
+# MuJoCo ros2_control
 
-This package contains a ros2_control system interface for the [MuJoCo Simulator](https://mujoco.readthedocs.io/en/3.4.0/overview.html).
-It was originally written for simulating robot hardware in NASA Johnson's [iMETRO facility](https://ntrs.nasa.gov/citations/20230015485).
+[![Rdev](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_resolute_amd64/badge/icon)](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_resolute_amd64/) [![Ldev](https://build.ros2.org/job/Ldev__mujoco_ros2_control__ubuntu_resolute_amd64/badge/icon)](https://build.ros2.org/job/Ldev__mujoco_ros2_control__ubuntu_resolute_amd64/) [![Kdev](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Jdev](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Hdev](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/badge/icon)](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/) [![CI](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml/badge.svg)](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml) ![License](https://img.shields.io/github/license/ros-controls/mujoco_ros2_control) [![Codecov](https://codecov.io/gh/ros-controls/mujoco_ros2_control/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-controls/mujoco_ros2_control)
 
-The system interface wraps MuJoCo's [Simulate App](https://github.com/google-deepmind/mujoco/tree/3.4.0/simulate) to provide included functionality.
-Because the app is not bundled as a library, we compile it directly from a local install of MuJoCo.
+This repository provides a ros2_control system interface and supporting packages to run ROS 2 controllers against the MuJoCo physics simulator.
 
-Parts of this library are also based on the MoveIt [mujoco_ros2_control](https://github.com/moveit/mujoco_ros2_control) package.
+This project wraps MuJoCo as a hardware/system interface so you can use the ros2_control stack (controller manager, controllers, controller interfaces) against simulated robots based on MJCF or generated from URDF.
 
-## URDF Model Conversion
+### Contents
 
-MuJoCo does not support the full feature set of xacro/URDFs in the ROS 2 ecosystem.
-Users are required to convert any existing robot description files to an MJCF format.
-We provide a *highly experimental* tool to automate URDF conversion — refer to the [URDF to MJCF conversion documentation](docs/tools.rst) for details.
+- `mujoco_ros2_control` - core system interface plugin and resources
+- `mujoco_ros2_control_msgs` - message/service definitions used by the plugin
+- `mujoco_ros2_control_plugins` - optional plugins that extend simulation capabilities
+- `mujoco_ros2_control_demos` - demo launch files, configs and example robots
+- `mujoco_ros2_control_tests` - integration / launch tests and simple examples
+- `docker/` - Dockerfiles and scripts to run CI/containers
 
-## Hardware Interface Setup
+### Key features
 
-The MuJoCo hardware interface is shipped as a `ros2_control` plugin. Specify it in your URDF and point to a valid MJCF:
+- Full ros2_control SystemInterface plugin for MuJoCo
+- MJCF/URDF conversion utilities to auto-generate MuJoCo models
+- Optional plugin system for extending simulation with custom publishers and services
+- Example demos showing basic control, PID and transmission setups
 
-```xml
-<ros2_control name="MujocoSystem" type="system">
-  <hardware>
-    <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
-    <param name="mujoco_model">$(find my_description)/description/scene.xml</param>
-  </hardware>
-  ...
-```
+## Quick start
 
-A custom `ros2_control` node is required due to compatibility requirements:
+There are two common ways to get running: build from source (recommended)
+or install prebuilt binaries (if available for your distribution).
 
-```python
-control_node = Node(
-    package="mujoco_ros2_control",
-    executable="ros2_control_node",
-    output="both",
-    parameters=[
-        {"use_sim_time": True},
-        controller_parameters,
-    ],
-)
-```
+- Build from source (recommended)
 
-For the full plugin parameter reference, joint control modes, gripper/mimic joint setup, sensors (FTS, IMU), cameras, and lidar configuration, see the [hardware interface documentation](docs/hardware_interface.rst).
+  1. Install required dependencies manually or from rosdep, including the `mujoco_vendor` package which provides the base MuJoCo install.
 
-## Simulation Topics and Services
+  2. Build the workspace (example with a sourced ROS 2 installation):
 
-The simulator exposes ROS 2 topics and services for interacting with the simulation at runtime (pause, reset, step-by-step control, etc.).
-See the [simulation topics and services documentation](docs/hardware_interface.rst#simulation-topics-and-services) for details.
+  ```bash
+  # from workspace root (this repository is typically inside a ROS 2 workspace)
+  colcon build --symlink-install --packages-select mujoco_ros2_control* \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release
+  ```
 
-## Test Robot System
+  3. Source the workspace and run a demo:
 
-While examples are limited, we maintain a functional example 2-dof robot system in the demos space (see `mujoco_ros2_control_demos` package).
-We generally recommend looking there for examples and recommended workflows.
+  ```bash
+  source install/setup.bash
+  ros2 launch mujoco_ros2_control_demos demo.launch.py
+  ```
 
-## Development
+- Install prebuilt binaries (if available)
 
-More information is provided in the [developers guide](../doc/development.rst).
+  If your ROS 2 distribution or your OS package index provides prebuilt
+  packages for `mujoco_ros2_control`, you can install those instead of
+  compiling from source. Check your distribution's package repositories or
+  the project's GitHub releases for available binary artifacts.
 
-## Further Documentation
+  Example (Debian/Ubuntu with ROS packages — replace `<distro>`):
 
-| Document | Description |
-|---|---|
-| [Hardware Interface](docs/hardware_interface.rst) | Plugin params, joints, sensors, cameras, lidar, topics, services, debugging |
-| [URDF to MJCF Conversion](docs/tools.rst) | Conversion tool usage and MJCF schema reference |
-| [Modeling Tips](docs/modeling_tips.rst) | Tips for modeling complex geometries in MuJoCo |
-| [Developers Guide](../doc/development.rst) | Development workflows (Docker, pixi) |
+  ```bash
+  sudo apt update
+  sudo apt install ros-<distro>-mujoco-ros2-control
+  ```
+
+  After installing binaries, source your ROS install and run a demo:
+
+  ```bash
+  source /opt/ros/<distro>/setup.bash
+  ros2 launch mujoco_ros2_control_demos demo.launch.py
+  ```
+
+See [mujoco_ros2_control/README.md](./mujoco_ros2_control/README.md) for detailed usage, configuration examples and mappings between MJCF actuators/sensors and ros2_control interfaces.
+
+Supported ROS 2 distributions
+- The project is developed and tested against multiple ROS 2 distributions.
+  This README includes basic notes for: `Humble`, `Jazzy`, `Kilted`, `Lyrical`, and `Rolling`.
+
+### Support matrix
+
+| Distribution | Status |
+| --- | --- |
+| Humble | Supported |
+| Jazzy | Supported |
+| Kilted | Supported |
+| Lyrical | Supported |
+| Rolling | Supported (development) |
+
+### Contributing
+
+- Contributions, bug reports and feature requests are welcome. Please follow standard ROS Controls project workflows: open issues, send PRs against the `main` branch and respect the repository code style using `pre-commit`.
+
+### License & maintainers
+
+- This repository is distributed under the terms of the LICENSE file (`LICENSE`). Maintainers and authors are listed in the Git history and package manifests (`package.xml`) inside each package.
