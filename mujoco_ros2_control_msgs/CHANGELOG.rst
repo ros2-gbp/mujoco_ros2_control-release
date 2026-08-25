@@ -2,6 +2,9 @@
 Changelog for package mujoco_ros2_control_msgs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2026-08-25)
+------------------
+
 0.1.0 (2026-08-18)
 ------------------
 * Refine reset world overrides functionality (`#263 <https://github.com/ros-controls/mujoco_ros2_control/issues/263>`_)
