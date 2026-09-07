@@ -1,4 +1,4 @@
-From 5721f19ae00411f2e87f75d9883ebbf9d815a6e7 Mon Sep 17 00:00:00 2001
+From 533d7a4bc95e71a3a13d4ef651f0c3fa6ca89a43 Mon Sep 17 00:00:00 2001
 From: Sai Kishor Kothakota <sai.kishor@pal-robotics.com>
 Date: Mon, 16 Mar 2026 10:21:39 +0100
 Subject: [PATCH] Override default FETCHCONTENT_FULLY_DISCONNECTED flag
@@ -8,7 +8,7 @@ Subject: [PATCH] Override default FETCHCONTENT_FULLY_DISCONNECTED flag
  1 file changed, 1 insertion(+)
 
 diff --git a/debian/rules.em b/debian/rules.em
-index a856369..b36b206 100755
+index a856369d..b36b206d 100755
 --- a/debian/rules.em
 +++ b/debian/rules.em
 @@ -35,6 +35,7 @@ override_dh_auto_configure:
