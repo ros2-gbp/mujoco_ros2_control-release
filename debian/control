@@ -1,0 +1,12 @@
+Source: ros-jazzy-mujoco-ros2-control-demos
+Section: misc
+Priority: optional
+Maintainer: "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ros-workspace
+Homepage: https://index.ros.org/p/mujoco_ros2_control_demos/#jazzy
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-mujoco-ros2-control-demos
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-controller-manager, ros-jazzy-forward-command-controller, ros-jazzy-joint-state-broadcaster, ros-jazzy-launch, ros-jazzy-launch-ros, ros-jazzy-mujoco-ros2-control, ros-jazzy-mujoco-ros2-control-msgs, ros-jazzy-pose-broadcaster, ros-jazzy-robot-state-publisher, ros-jazzy-rviz2, ros-jazzy-xacro, ros-jazzy-ros-workspace
+Description: Demonstration examples for mujoco_ros2_control package
