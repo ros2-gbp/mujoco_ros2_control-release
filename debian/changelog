@@ -1,0 +1,43 @@
+ros-lyrical-mujoco-3d-lidar (0.1.2-1trixie) trixie; urgency=high
+
+
+
+ -- "Jodi Graf" <jodi.s.graf@nasa.gov>  Sun, 06 Sep 2026 22:00:00 -0000
+
+ros-lyrical-mujoco-3d-lidar (0.1.1-1trixie) trixie; urgency=high
+
+  * Fix compilation on MuJoCo 3.12.0 (#290 <https://github.com/pal-robotics-forks/mujoco_ros2_control/issues/290>)
+  * Fix the generate changelog of 0.1.0 (#288 <https://github.com/pal-robotics-forks/mujoco_ros2_control/issues/288>)
+  * Contributors: Sai Kishor Kothakota
+
+ -- "Jodi Graf" <jodi.s.graf@nasa.gov>  Mon, 24 Aug 2026 22:00:00 -0000
+
+ros-lyrical-mujoco-3d-lidar (0.1.0-1trixie) trixie; urgency=high
+
+  * Make CI tests more robust (#239 <https://github.com/ros-controls/mujoco_ros2_control/issues/239>)
+  * Add Plugin for the 3D Lidar Extension (#207 <https://github.com/ros-controls/mujoco_ros2_control/issues/207>)
+  * Update Pixi packages with pixi.lock (#223 <https://github.com/ros-controls/mujoco_ros2_control/issues/223>)
+  * Add a 3-D Lidar Extension (#205 <https://github.com/ros-controls/mujoco_ros2_control/issues/205>)
+  * Contributors: Erik Holum, Sai Kishor Kothakota
+
+ -- "Jodi Graf" <jodi.s.graf@nasa.gov>  Mon, 17 Aug 2026 22:00:00 -0000
+
+ros-lyrical-mujoco-3d-lidar (0.0.3-1trixie) trixie; urgency=high
+
+
+
+ -- "Jodi Graf" <jodi.s.graf@nasa.gov>  Thu, 30 Apr 2026 22:00:00 -0000
+
+ros-lyrical-mujoco-3d-lidar (0.0.2-1trixie) trixie; urgency=high
+
+
+
+ -- "Jodi Graf" <jodi.s.graf@nasa.gov>  Mon, 16 Mar 2026 23:00:00 -0000
+
+ros-lyrical-mujoco-3d-lidar (0.0.1-1trixie) trixie; urgency=high
+
+
+
+ -- "Jodi Graf" <jodi.s.graf@nasa.gov>  Mon, 23 Feb 2026 23:00:00 -0000
+
+
