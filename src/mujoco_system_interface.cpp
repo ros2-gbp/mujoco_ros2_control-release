@@ -18,6 +18,7 @@
  */
 
 #include "mujoco_ros2_control/mujoco_system_interface.hpp"
+#include "mujoco_ros2_control/utils.hpp"
 
 #include <fmt/compile.h>
 #include <fmt/ranges.h>
@@ -188,11 +189,12 @@ std::vector<std::string> get_joint_actuator_names(const std::string& joint_name,
     {
       if (joint.name == joint_name)
       {
-        // A MuJoCo actuator/joint sharing the joint name takes precedence: this is a direct 1:1 mapping
+        // Same-named actuator: values still flow through the transmission (see
+        // for_each_matched_joint_actuator() below), only the control mode is set here.
         if (get_actuator_id(joint_name, mj_model) != -1)
         {
-          RCLCPP_INFO(rclcpp::get_logger("MujocoSystemInterface"), "Found direct actuator match for joint '%s'",
-                      joint_name.c_str());
+          RCLCPP_INFO(rclcpp::get_logger("MujocoSystemInterface"), "Joint '%s' is driven by transmission '%s'",
+                      joint_name.c_str(), transmission.name.c_str());
           return { joint_name };
         }
         // Otherwise the joint is driven through the transmission: it maps to all the transmission's actuators
@@ -954,6 +956,10 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
     data.linear_acceleration.data.x() = control_state_.sensordata[data.linear_acceleration.mj_sensor_index];
     data.linear_acceleration.data.y() = control_state_.sensordata[data.linear_acceleration.mj_sensor_index + 1];
     data.linear_acceleration.data.z() = control_state_.sensordata[data.linear_acceleration.mj_sensor_index + 2];
+
+    add_sensor_noise(data.orientation.data, data.orientation_noise_stddev, data.noise);
+    add_sensor_noise(data.angular_velocity.data, data.angular_velocity_noise_stddev, data.noise);
+    add_sensor_noise(data.linear_acceleration.data, data.linear_acceleration_noise_stddev, data.noise);
   }
 
   // FT Sensor data
@@ -966,6 +972,9 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
     data.torque.data.x() = -control_state_.sensordata[data.torque.mj_sensor_index];
     data.torque.data.y() = -control_state_.sensordata[data.torque.mj_sensor_index + 1];
     data.torque.data.z() = -control_state_.sensordata[data.torque.mj_sensor_index + 2];
+
+    add_sensor_noise(data.force.data, data.force_noise_stddev, data.noise);
+    add_sensor_noise(data.torque.data, data.torque_noise_stddev, data.noise);
   }
 
   // pose sensor data
@@ -979,6 +988,9 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
     data.orientation.data.x() = control_state_.sensordata[data.orientation.mj_sensor_index + 1];
     data.orientation.data.y() = control_state_.sensordata[data.orientation.mj_sensor_index + 2];
     data.orientation.data.z() = control_state_.sensordata[data.orientation.mj_sensor_index + 3];
+
+    add_sensor_noise(data.position.data, data.position_noise_stddev, data.noise);
+    add_sensor_noise(data.orientation.data, data.orientation_noise_stddev, data.noise);
   }
 
   // Magnetometer sensor data
@@ -987,6 +999,8 @@ hardware_interface::return_type MujocoSystemInterface::read(const rclcpp::Time& 
     data.magnetic_field.data.x() = control_state_.sensordata[data.magnetic_field.mj_sensor_index];
     data.magnetic_field.data.y() = control_state_.sensordata[data.magnetic_field.mj_sensor_index + 1];
     data.magnetic_field.data.z() = control_state_.sensordata[data.magnetic_field.mj_sensor_index + 2];
+
+    add_sensor_noise(data.magnetic_field.data, data.magnetic_field_noise_stddev, data.noise);
   }
 
   // Publish Odometry
@@ -1103,20 +1117,30 @@ hardware_interface::return_type MujocoSystemInterface::write(const rclcpp::Time&
   return hardware_interface::return_type::OK;
 }
 
-void MujocoSystemInterface::actuator_state_to_joint_state()
+template <typename Fn>
+void for_each_matched_joint_actuator(std::vector<URDFJointData>& joints, std::vector<MuJoCoActuatorData>& actuators,
+                                     Fn&& fn)
 {
-  // Copy state for every joint that does not have a transmission
-  for (auto& joint : urdf_joint_data_)
+  for (auto& joint : joints)
   {
-    std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(), [&](auto& actuator_interface) {
+    std::for_each(actuators.begin(), actuators.end(), [&](auto& actuator_interface) {
       if (actuator_interface.joint_name == joint.name)
       {
-        joint.position_interface.transmission_passthrough_ = actuator_interface.position_interface.state_;
-        joint.velocity_interface.transmission_passthrough_ = actuator_interface.velocity_interface.state_;
-        joint.effort_interface.transmission_passthrough_ = actuator_interface.effort_interface.state_;
+        fn(joint, actuator_interface);
       }
     });
   }
+}
+
+void MujocoSystemInterface::actuator_state_to_joint_state()
+{
+  // Seed the passthrough from the direct name match. This is the only source for a joint with no
+  // transmission; for a joint that has one, the transmission overwrites it below.
+  for_each_matched_joint_actuator(urdf_joint_data_, mujoco_actuator_data_, [](auto& joint, auto& actuator_interface) {
+    joint.position_interface.transmission_passthrough_ = actuator_interface.position_interface.state_;
+    joint.velocity_interface.transmission_passthrough_ = actuator_interface.velocity_interface.state_;
+    joint.effort_interface.transmission_passthrough_ = actuator_interface.effort_interface.state_;
+  });
 
   // Use transmission to get joint state from actuator
   // actuator: MuJoCo -> transmission
@@ -1134,7 +1158,19 @@ void MujocoSystemInterface::actuator_state_to_joint_state()
 
 void MujocoSystemInterface::joint_command_to_actuator_command()
 {
-  // Transmissions
+  // Seed the passthrough from the direct name match, same as actuator_state_to_joint_state(), so both
+  // directions apply it before the transmission step below overwrites it.
+  for_each_matched_joint_actuator(urdf_joint_data_, mujoco_actuator_data_, [](auto& joint, auto& actuator_interface) {
+    if (actuator_interface.actuator_type == ActuatorType::PASSIVE)
+    {
+      return;
+    }
+    actuator_interface.position_interface.transmission_passthrough_ = joint.position_interface.command_;
+    actuator_interface.velocity_interface.transmission_passthrough_ = joint.velocity_interface.command_;
+    actuator_interface.effort_interface.transmission_passthrough_ = joint.effort_interface.command_;
+  });
+
+  // Use transmission to transform joint command to actuator space
   std::for_each(urdf_joint_data_.begin(), urdf_joint_data_.end(),
                 [](auto& joint_interface) { joint_interface.copy_command_to_transmission(); });
 
@@ -1145,20 +1181,6 @@ void MujocoSystemInterface::joint_command_to_actuator_command()
   // set the commands to the MuJoCo actuators
   std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(),
                 [](auto& actuator_interface) { actuator_interface.copy_command_from_transmission(); });
-
-  // If the actuator name and joint name is same (which is the case for non transmission joints), we need to copy
-  // the command from joint to actuator here as there is no transmission instance to do that.
-  for (auto& joint : urdf_joint_data_)
-  {
-    std::for_each(mujoco_actuator_data_.begin(), mujoco_actuator_data_.end(), [&](auto& actuator_interface) {
-      if (actuator_interface.joint_name == joint.name && actuator_interface.actuator_type != ActuatorType::PASSIVE)
-      {
-        actuator_interface.position_interface.command_ = joint.position_interface.command_;
-        actuator_interface.velocity_interface.command_ = joint.velocity_interface.command_;
-        actuator_interface.effort_interface.command_ = joint.effort_interface.command_;
-      }
-    });
-  }
 }
 
 bool MujocoSystemInterface::register_mujoco_actuators()
@@ -1943,6 +1965,15 @@ void MujocoSystemInterface::register_sensors(const hardware_interface::HardwareI
       sensor_data.force.mj_sensor_index = simulation_->model()->sensor_adr[force_sensor_id];
       sensor_data.torque.mj_sensor_index = simulation_->model()->sensor_adr[torque_sensor_id];
 
+      // Noise magnitude sourced from the MJCF sensors' own `noise` attribute; see register_sensors() doc.
+      sensor_data.force_noise_stddev = simulation_->model()->sensor_noise[force_sensor_id];
+      sensor_data.torque_noise_stddev = simulation_->model()->sensor_noise[torque_sensor_id];
+      sensor_data.noise.distribution = get_noise_distribution(sensor);
+
+      log_sensor_components_noise(get_logger(), sensor_data.noise.distribution,
+                                  { { sensor_data.force.name, sensor_data.force_noise_stddev },
+                                    { sensor_data.torque.name, sensor_data.torque_noise_stddev } });
+
       ft_sensor_data_.push_back(sensor_data);
     }
     else if (mujoco_type == MUJOCO_TYPE_IMU)
@@ -1984,6 +2015,25 @@ void MujocoSystemInterface::register_sensors(const hardware_interface::HardwareI
       sensor_data.angular_velocity.mj_sensor_index = simulation_->model()->sensor_adr[gyro_id];
       sensor_data.linear_acceleration.mj_sensor_index = simulation_->model()->sensor_adr[accel_id];
 
+      // Noise magnitude sourced from the MJCF sensors' own `noise` attribute; see register_sensors() doc.
+      sensor_data.orientation_noise_stddev = simulation_->model()->sensor_noise[quat_id];
+      sensor_data.angular_velocity_noise_stddev = simulation_->model()->sensor_noise[gyro_id];
+      sensor_data.linear_acceleration_noise_stddev = simulation_->model()->sensor_noise[accel_id];
+      sensor_data.noise.distribution = get_noise_distribution(sensor);
+
+      log_sensor_components_noise(
+          get_logger(), sensor_data.noise.distribution,
+          { { sensor_data.orientation.name, sensor_data.orientation_noise_stddev },
+            { sensor_data.angular_velocity.name, sensor_data.angular_velocity_noise_stddev },
+            { sensor_data.linear_acceleration.name, sensor_data.linear_acceleration_noise_stddev } });
+
+      // Surface the configured noise as diagonal covariance for consumers that expect an uncertainty
+      // estimate (off-diagonal terms stay 0, i.e. axes are assumed independent). Stays all-zero, as before
+      // noise support existed, when the corresponding *_noise_stddev is left at its 0 default.
+      set_diagonal_covariance(sensor_data.orientation_covariance, sensor_data.orientation_noise_stddev);
+      set_diagonal_covariance(sensor_data.angular_velocity_covariance, sensor_data.angular_velocity_noise_stddev);
+      set_diagonal_covariance(sensor_data.linear_acceleration_covariance, sensor_data.linear_acceleration_noise_stddev);
+
       imu_sensor_data_.push_back(sensor_data);
     }
     else if (mujoco_type == MUJOCO_TYPE_POSE)
@@ -2015,6 +2065,15 @@ void MujocoSystemInterface::register_sensors(const hardware_interface::HardwareI
       sensor_data.position.mj_sensor_index = simulation_->model()->sensor_adr[pos_id];
       sensor_data.orientation.mj_sensor_index = simulation_->model()->sensor_adr[quat_id];
 
+      // Noise magnitude sourced from the MJCF sensors' own `noise` attribute; see register_sensors() doc.
+      sensor_data.position_noise_stddev = simulation_->model()->sensor_noise[pos_id];
+      sensor_data.orientation_noise_stddev = simulation_->model()->sensor_noise[quat_id];
+      sensor_data.noise.distribution = get_noise_distribution(sensor);
+
+      log_sensor_components_noise(get_logger(), sensor_data.noise.distribution,
+                                  { { sensor_data.position.name, sensor_data.position_noise_stddev },
+                                    { sensor_data.orientation.name, sensor_data.orientation_noise_stddev } });
+
       pose_sensor_data_.push_back(sensor_data);
     }
     else if (mujoco_type == MUJOCO_TYPE_MAGNETOMETER)
@@ -2034,6 +2093,13 @@ void MujocoSystemInterface::register_sensors(const hardware_interface::HardwareI
       }
 
       sensor_data.magnetic_field.mj_sensor_index = simulation_->model()->sensor_adr[magnetometer_id];
+
+      // Noise magnitude sourced from the MJCF sensor's own `noise` attribute; see register_sensors() doc.
+      sensor_data.magnetic_field_noise_stddev = simulation_->model()->sensor_noise[magnetometer_id];
+      sensor_data.noise.distribution = get_noise_distribution(sensor);
+
+      log_sensor_components_noise(get_logger(), sensor_data.noise.distribution,
+                                  { { sensor_data.magnetic_field.name, sensor_data.magnetic_field_noise_stddev } });
 
       magnetometer_sensor_data_.push_back(sensor_data);
     }
@@ -2359,20 +2425,6 @@ bool MujocoSystemInterface::auto_register_plugin_if_needed(const std::string& pl
   }
 
   return true;
-}
-
-inline std::optional<hardware_interface::ComponentInfo>
-get_sensor_from_info(const hardware_interface::HardwareInfo& hardware_info, const std::string& name)
-{
-  for (size_t sensor_index = 0; sensor_index < hardware_info.sensors.size(); sensor_index++)
-  {
-    const auto& sensor = hardware_info.sensors.at(sensor_index);
-    if (hardware_info.sensors.at(sensor_index).name == name)
-    {
-      return sensor;
-    }
-  }
-  return std::nullopt;
 }
 
 void MujocoSystemInterface::load_legacy_cameras(const std::vector<std::string>& plugins_ns)
