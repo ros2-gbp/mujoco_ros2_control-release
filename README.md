@@ -1,3 +1,34 @@
+## mujoco_ros2_control (rolling) - 0.1.3-1
+
+The packages in the `mujoco_ros2_control` repository were released into the `rolling` distro by running `/usr/bin/bloom-release --track rolling --rosdistro rolling -y mujoco_ros2_control` on `Fri, 09 Oct 2026 22:42:20 -0000`
+
+These packages were released:
+- `mujoco_3d_lidar`
+- `mujoco_ros2_control`
+- `mujoco_ros2_control_demos`
+- `mujoco_ros2_control_msgs`
+- `mujoco_ros2_control_plugins`
+
+These packages were explicitly ignored:
+- `mujoco_ros2_control_tests`
+
+Version of package(s) in repository `mujoco_ros2_control`:
+
+- upstream repository: https://github.com/ros-controls/mujoco_ros2_control.git
+- release repository: https://github.com/ros2-gbp/mujoco_ros2_control-release.git
+- rosdistro version: `0.1.2-1`
+- old version: `0.1.2-1`
+- new version: `0.1.3-1`
+
+Versions of tools used:
+
+- bloom version: `0.14.4`
+- catkin_pkg version: `1.1.0`
+- rosdep version: `0.26.0`
+- rosdistro version: `1.0.1`
+- vcstools version: `0.1.42`
+
+
 ## mujoco_ros2_control (lyrical) - 0.1.3-1
 
 The packages in the `mujoco_ros2_control` repository were released into the `lyrical` distro by running `/usr/bin/bloom-release --track lyrical --rosdistro lyrical -y mujoco_ros2_control` on `Fri, 09 Oct 2026 22:21:13 -0000`
