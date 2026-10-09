@@ -1,92 +1,103 @@
-# MuJoCo ros2_control
+# 3-D Lidar Extension for Mujoco
 
-[![Rdev](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_resolute_amd64/badge/icon)](https://build.ros2.org/job/Rdev__mujoco_ros2_control__ubuntu_resolute_amd64/) [![Ldev](https://build.ros2.org/job/Ldev__mujoco_ros2_control__ubuntu_resolute_amd64/badge/icon)](https://build.ros2.org/job/Ldev__mujoco_ros2_control__ubuntu_resolute_amd64/) [![Kdev](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Kdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Jdev](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/badge/icon)](https://build.ros2.org/job/Jdev__mujoco_ros2_control__ubuntu_noble_amd64/) [![Hdev](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/badge/icon)](https://build.ros2.org/job/Hdev__mujoco_ros2_control__ubuntu_jammy_amd64/) [![CI](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml/badge.svg)](https://github.com/ros-controls/mujoco_ros2_control/actions/workflows/ci.yaml) ![License](https://img.shields.io/github/license/ros-controls/mujoco_ros2_control) [![Codecov](https://codecov.io/gh/ros-controls/mujoco_ros2_control/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-controls/mujoco_ros2_control)
+## [Lidar](include/mujoco_3d_lidar/3dlidar.h)
 
-This repository provides a ros2_control system interface and supporting packages to run ROS 2 controllers against the MuJoCo physics simulator.
+This sensor uses ray casting to simulate lidar.
 
-This project wraps MuJoCo as a hardware/system interface so you can use the ros2_control stack (controller manager, controllers, controller interfaces) against simulated robots based on MJCF or generated from URDF.
+A `lidar` sensor is associated with a site and finds the nearest collision points from the site along a set of vectors.
+The vectors are determined by the size and field of view parameters.
 
-### Contents
+The sensor is parametrizable with the following:
 
-- `mujoco_ros2_control` - core system interface plugin and resources
-- `mujoco_ros2_control_msgs` - message/service definitions used by the plugin
-- `mujoco_ros2_control_plugins` - optional plugins that extend simulation capabilities
-- `mujoco_ros2_control_demos` - demo launch files, configs and example robots
-- `mujoco_ros2_control_tests` - integration / launch tests and simple examples
-- `docker/` - Dockerfiles and scripts to run CI/containers
+1. Horizontal resolution (`size[0]`). _positive integer_
+2. Vertical resolution (`size[1]`). _positive integer_
+3. Horizontal field-of-view (`fov[0]`). _positive float in (0, 2 $\pi$.] radians_
+4. Vertical field-of-view(`fov[1]`). _positive float in (0, $\pi$] radians_
+5. Maximum Range. _positive float greater than 0.0 (m)_
+6. Minimum Range. _positive float greater than 0.0 (m)_ (Optional, defaults to 0.0)
+7. Update Rate. _positive float greater than 0.0 (Hz)_ (Optional, defaults to 0.0)
+    * **Note**. This may be removed in future versions after the [interval attribute](https://mujoco.readthedocs.io/en/stable/modeling.html#sensors) is available for sensors.
+8. Async. _boolean int (0 for false, non-zero for true)_ (Optional, defaults to 0)
 
-### Key features
+Field of view should always be in radians regardless of the compiler options.
 
-- Full ros2_control SystemInterface plugin for MuJoCo
-- MJCF/URDF conversion utilities to auto-generate MuJoCo models
-- Optional plugin system for extending simulation with custom publishers and services
-- Example demos showing basic control, PID and transmission setups
+The horizontal fov is divided by the horizontal resolution to compute the number of azimuth angles.
+The vertical fov is divided by the vertical resolution to compute the number of elevation angles.
+Each azimuth/elevation pair defines a vector.
+The distance result is the set of distances to collision from the site origin along that vector.
 
-## Quick start
+These parameters are passed as extension config attributes:
 
-There are two common ways to get running: build from source (recommended)
-or install prebuilt binaries (if available for your distribution).
+```xml
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sensor.lidar"/>
+  </extension>
+  ...
+  <sensor>
+    <plugin name="lidar" plugin="mujoco.plugin.lidar" objtype="site" objname="lidar_sensor">
+      <config key="size" value="360 10"/>
+      <config key="fov" value="6.2832 0.7854"/>
+      <config key="max_range" value="13.0"/>
+      <config key="min_range" value="1.0"/>
+      <config key="update_rate" value="1.0"/>
+      <config key="async" value="0"/>
+    </plugin>
+  </sensor>
+</mujoco>
+```
 
-- Build from source (recommended)
+Note the following:
 
-  1. Install required dependencies manually or from rosdep, including the `mujoco_vendor` package which provides the base MuJoCo install.
+* The dimensionality of the sensor output is `size_x *size_y`.
+* `objtype="site" objname="lidar"` specify that the sensor is associated with a
+  site, and the name of the specific site.
+* Field-of-view angles are always in radians.
+* If async is specified, lidar computations are done in the background and data will be delayed.
 
-  2. Build the workspace (example with a sourced ROS 2 installation):
+### Example model
 
-  ```bash
-  # from workspace root (this repository is typically inside a ROS 2 workspace)
-  colcon build --symlink-install --packages-select mujoco_ros2_control* \
-    --cmake-args -DCMAKE_BUILD_TYPE=Release
-  ```
+<img src="docs/lidar_45x1.jpg" width="600" height="400">
+Lidar with:
+ horizontal fov = 45 deg,
+ vertical fov = 0,
+ horizontal size = 15,
+ vertical size = 1
 
-  3. Source the workspace and run a demo:
+<img src="docs/lidar_360x1.jpg" width="600" height="400">
+Lidar with:
+ horizontal fov = 360 deg,
+ vertical fov = 0,
+ horizontal size = 360,
+ vertical size = 1
 
-  ```bash
-  source install/setup.bash
-  ros2 launch mujoco_ros2_control_demos demo.launch.py
-  ```
+<img src="docs/lidar_360x45.jpg" width="600" height="400">
+Lidar with:
+ horizontal fov = 360 deg,
+ vertical fov = 45,
+ horizontal size = 360,
+ vertical size = 4
 
-- Install prebuilt binaries (if available)
+See [lidar.xml](example/lidar.xml) to play with the model above.
 
-  If your ROS 2 distribution or your OS package index provides prebuilt
-  packages for `mujoco_ros2_control`, you can install those instead of
-  compiling from source. Check your distribution's package repositories or
-  the project's GitHub releases for available binary artifacts.
+## Standalone Build
 
-  Example (Debian/Ubuntu with ROS packages — replace `<distro>`):
+This package is intended to be build alongside the `mujoco_ros2_control` packages.
+However, we maintain a standalone build in the event that users want to pull this out and use it separately.
+To compile, ensure `mujoco_vendor` is installed and available.
 
-  ```bash
-  sudo apt update
-  sudo apt install ros-<distro>-mujoco-ros2-control
-  ```
+From this package's root:
 
-  After installing binaries, source your ROS install and run a demo:
+```bash
+mkdir build
+cd build
+cmake ..
+make
+```
 
-  ```bash
-  source /opt/ros/<distro>/setup.bash
-  ros2 launch mujoco_ros2_control_demos demo.launch.py
-  ```
+This will create a mujoco_plugin directory alongside the mujoco binaries and install the lidar extension there.
+It can now be found.
 
-See [mujoco_ros2_control/README.md](./mujoco_ros2_control/README.md) for detailed usage, configuration examples and mappings between MJCF actuators/sensors and ros2_control interfaces.
-
-Supported ROS 2 distributions
-- The project is developed and tested against multiple ROS 2 distributions.
-  This README includes basic notes for: `Humble`, `Jazzy`, `Kilted`, `Lyrical`, and `Rolling`.
-
-### Support matrix
-
-| Distribution | Status |
-| --- | --- |
-| Humble | Supported |
-| Jazzy | Supported |
-| Kilted | Supported |
-| Lyrical | Supported |
-| Rolling | Supported (development) |
-
-### Contributing
-
-- Contributions, bug reports and feature requests are welcome. Please follow standard ROS Controls project workflows: open issues, send PRs against the `main` branch and respect the repository code style using `pre-commit`.
-
-### License & maintainers
-
-- This repository is distributed under the terms of the LICENSE file (`LICENSE`). Maintainers and authors are listed in the Git history and package manifests (`package.xml`) inside each package.
+```bash
+simulate example/lidar.xml
+```
