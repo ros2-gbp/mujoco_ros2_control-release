@@ -1,0 +1,12 @@
+Source: ros-humble-mujoco-ros2-control-plugins
+Section: misc
+Priority: optional
+Maintainer: "Nathan Dunkelberger" <nathan.b.dunkelberger@nasa.gov>
+Build-Depends: debhelper (>= 9.0.0), libgl1-mesa-dev, libglfw3-dev, libglu1-mesa-dev, ros-humble-ament-cmake, ros-humble-ament-cmake-gtest <!nocheck>, ros-humble-ament-index-cpp <!nocheck>, ros-humble-backward-ros, ros-humble-geometry-msgs, ros-humble-mujoco-3d-lidar <!nocheck>, ros-humble-mujoco-ros2-control-msgs, ros-humble-mujoco-vendor, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-realtime-tools, ros-humble-ros2-control-cmake, ros-humble-sensor-msgs, ros-humble-std-msgs, ros-humble-std-srvs, ros-humble-visualization-msgs, ros-humble-ros-workspace
+Homepage: https://index.ros.org/p/mujoco_ros2_control_plugins/#humble
+Standards-Version: 3.9.2
+
+Package: ros-humble-mujoco-ros2-control-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libgl1-mesa-dev, libglfw3-dev, libglu1-mesa-dev, ros-humble-backward-ros, ros-humble-geometry-msgs, ros-humble-mujoco-ros2-control-msgs, ros-humble-mujoco-vendor, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-realtime-tools, ros-humble-ros2-control-cmake, ros-humble-sensor-msgs, ros-humble-std-msgs, ros-humble-std-srvs, ros-humble-visualization-msgs, ros-humble-ros-workspace
+Description: Plugin package for mujoco_ros2_control
